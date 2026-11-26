@@ -60,13 +60,19 @@ begin
         raise exception 'Seul un administrateur actif peut valider les décisions de passage.';
     end if;
 
+    if new.decision is not distinct from old.decision then
+        raise exception 'Cette opération est réservée à la validation d'une décision de passage.';
+    end if;
+
     if new.student_id is distinct from old.student_id
        or new.school_year_id is distinct from old.school_year_id
        or new.category_id is distinct from old.category_id
        or new.class_id is distinct from old.class_id
        or new.option_id is distinct from old.option_id
-       or new.created_at is distinct from old.created_at then
-        raise exception 'La validation ne peut modifier que la décision et ses informations de validation.';
+       or new.created_at is distinct from old.created_at
+       or new.decision_validated_by is distinct from old.decision_validated_by
+       or new.decision_validated_at is distinct from old.decision_validated_at then
+        raise exception 'La validation ne peut modifier que la décision ; l'auteur et la date sont attribués automatiquement.';
     end if;
 
     if new.decision = 'EN_ATTENTE' then
@@ -99,7 +105,6 @@ drop trigger if exists enrollments_guard_decision_changes on public.student_enro
 create trigger enrollments_guard_decision_changes
 before update on public.student_enrollments
 for each row
-when (old.decision is distinct from new.decision)
 execute function public.guard_enrollment_decision_changes();
 
 -- 5. L'administrateur et le préfet peuvent consulter tous les paiements.
