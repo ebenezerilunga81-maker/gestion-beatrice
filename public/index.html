@@ -1,0 +1,68 @@
+<!doctype html>
+<html lang="fr">
+<head>
+<meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
+<meta name="theme-color" content="#102b50">
+<title>GESTION BÉATRICE — Aperçu</title>
+<style>
+:root{--navy:#102b50;--blue:#1d5da8;--sky:#eaf2fb;--ink:#172b45;--muted:#718096;--line:#e5ebf2;--bg:#f5f7fb;--white:#fff;--gold:#d8a83e}
+*{box-sizing:border-box}body{margin:0;background:var(--bg);color:var(--ink);font:15px/1.5 Inter,ui-sans-serif,system-ui,-apple-system,"Segoe UI",sans-serif}
+.app{display:grid;grid-template-columns:255px 1fr;min-height:100vh}.sidebar{background:var(--navy);color:#fff;padding:25px 18px;display:flex;flex-direction:column}.brand{display:flex;gap:12px;align-items:center;padding:4px 8px 28px;border-bottom:1px solid #ffffff20}.brandmark{width:42px;height:42px;border-radius:12px;background:#fff;color:var(--navy);display:grid;place-items:center;font-weight:900;font-size:19px}.brand strong{display:block;font-size:16px;letter-spacing:.5px}.brand small{color:#b9c9dd;font-size:11px}.navlabel{margin:25px 10px 9px;color:#8fa8c6;font-size:10px;font-weight:800;letter-spacing:1.4px}.nav a{display:flex;align-items:center;gap:12px;padding:11px 13px;margin:3px 0;border-radius:9px;color:#d5e0ed;text-decoration:none;font-size:13px}.nav a.active,.nav a:hover{background:#ffffff18;color:#fff}.ico{width:18px;text-align:center;font-size:16px}.sidefoot{margin-top:auto;border-top:1px solid #ffffff20;padding:17px 8px 0;color:#b9c9dd;font-size:11px}.main{min-width:0}.topbar{height:76px;background:#fff;border-bottom:1px solid var(--line);display:flex;align-items:center;justify-content:space-between;padding:0 34px}.crumb{font-size:13px;color:var(--muted)}.crumb b{color:var(--ink)}.topright{display:flex;align-items:center;gap:16px}.status{display:flex;align-items:center;gap:7px;color:#65758a;font-size:12px}.dot{width:8px;height:8px;background:#e0a52e;border-radius:50%}.avatar{width:35px;height:35px;border-radius:50%;background:var(--sky);color:var(--blue);display:grid;place-items:center;font-weight:800;font-size:12px}.content{padding:30px 34px;max-width:1450px;margin:auto}.eyebrow{color:var(--blue);font-size:11px;font-weight:800;letter-spacing:1.5px;text-transform:uppercase}.heading{display:flex;justify-content:space-between;align-items:flex-end;gap:20px;margin:5px 0 23px}.heading h1{font-size:27px;line-height:1.2;margin:5px 0 7px;letter-spacing:-.7px}.heading p{margin:0;color:var(--muted);font-size:13px}.btn{border:0;border-radius:8px;padding:11px 16px;background:var(--blue);color:#fff;font-weight:700;font-size:12px;cursor:pointer}.btn.secondary{background:#fff;color:var(--blue);border:1px solid #d7e3f1}.notice{display:flex;gap:12px;align-items:flex-start;background:#fff9e9;border:1px solid #f1dfae;color:#72551b;padding:13px 16px;border-radius:10px;font-size:12px;margin-bottom:22px}.notice strong{display:block;margin-bottom:2px}.cards{display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:16px;margin-bottom:22px}.card{background:#fff;border:1px solid var(--line);border-radius:12px;padding:19px 20px;box-shadow:0 2px 8px #18385a08}.cardtop{display:flex;justify-content:space-between;align-items:center;color:var(--muted);font-size:12px}.cardicon{width:34px;height:34px;border-radius:9px;background:var(--sky);color:var(--blue);display:grid;place-items:center;font-size:16px}.value{font-size:27px;font-weight:800;letter-spacing:-.8px;margin:13px 0 3px}.sub{font-size:11px;color:#8a98a9}.grid{display:grid;grid-template-columns:1.35fr 1fr;gap:18px}.panel{background:#fff;border:1px solid var(--line);border-radius:12px;padding:20px}.panelhead{display:flex;justify-content:space-between;align-items:center;margin-bottom:17px}.panel h2{font-size:15px;margin:0}.panelhead span{font-size:11px;color:var(--muted)}.table{width:100%;border-collapse:collapse;text-align:left}.table th{font-size:10px;color:#8492a4;text-transform:uppercase;letter-spacing:.7px;font-weight:700;padding:10px 8px;border-bottom:1px solid var(--line)}.table td{padding:13px 8px;border-bottom:1px solid #f0f3f7;font-size:12px}.table tr:last-child td{border:0}.tag{display:inline-block;padding:4px 8px;border-radius:20px;background:#edf4fc;color:#245e9b;font-size:10px;font-weight:700}.quick{display:grid;grid-template-columns:1fr 1fr;gap:10px}.quick a{border:1px solid var(--line);border-radius:9px;padding:13px;text-decoration:none;color:var(--ink);font-size:12px;font-weight:700}.quick a span{display:block;color:var(--muted);font-size:10px;font-weight:400;margin-top:4px}.quick a:hover{border-color:#9bb9db;background:#f8fbff}.footnote{text-align:center;color:#94a0ae;font-size:10px;padding:24px 0 8px}
+@media(max-width:1050px){.cards{grid-template-columns:repeat(2,1fr)}.grid{grid-template-columns:1fr}}@media(max-width:700px){.app{grid-template-columns:1fr}.sidebar{padding:14px 16px}.brand{padding-bottom:12px}.nav{display:flex;overflow:auto;gap:4px}.navlabel,.sidefoot{display:none}.nav a{white-space:nowrap;padding:8px 10px}.topbar{height:58px;padding:0 17px}.content{padding:22px 16px}.heading{align-items:flex-start;flex-direction:column}.heading h1{font-size:23px}.cards{gap:10px}.card{padding:14px}.value{font-size:22px}.table{min-width:480px}.panel{overflow:auto}}
+</style>
+</head>
+<body>
+<div class="app">
+<aside class="sidebar">
+ <div class="brand"><div class="brandmark">GB</div><div><strong>GESTION BÉATRICE</strong><small>Administration scolaire</small></div></div>
+ <div class="navlabel">MENU PRINCIPAL</div>
+ <nav class="nav">
+  <a class="active" href="#accueil"><span class="ico">▦</span> Tableau de bord</a>
+  <a href="#eleves"><span class="ico">♙</span> Élèves & inscriptions</a>
+  <a href="#paiements"><span class="ico">▤</span> Paiements & caisse</a>
+  <a href="#annees"><span class="ico">◷</span> Années scolaires</a>
+  <a href="#promotions"><span class="ico">⇧</span> Décisions & promotions</a>
+  <a href="#rapports"><span class="ico">▥</span> Rapports & archives</a>
+ </nav>
+ <div class="navlabel">CONFIGURATION</div>
+ <nav class="nav">
+  <a href="#tarifs"><span class="ico">◇</span> Tarifs scolaires</a>
+  <a href="#comptes"><span class="ico">♧</span> Utilisateurs & rôles</a>
+  <a href="#parametres"><span class="ico">⚙</span> Paramètres</a>
+ </nav>
+ <div class="sidefoot">GESTION BÉATRICE<br>Plateforme de gestion scolaire<br><br>© 2026 — Interface de prévisualisation</div>
+</aside>
+<main class="main" id="accueil">
+ <header class="topbar"><div class="crumb">Espace administration&nbsp; / &nbsp;<b>Tableau de bord</b></div><div class="topright"><div class="status"><i class="dot"></i> Aperçu non connecté</div><div class="avatar">AD</div></div></header>
+ <section class="content">
+  <div class="eyebrow">Vue générale</div>
+  <div class="heading"><div><h1>Tableau de bord</h1><p>Bienvenue dans votre espace de gestion scolaire.</p></div><button class="btn secondary" onclick="alert('La connexion à la base officielle sera activée après validation de la structure.')">Année scolaire : à configurer ▾</button></div>
+  <div class="notice"><div>ⓘ</div><div><strong>Prévisualisation de l’interface</strong>Cette page permet de voir le rendu visuel. Elle n’est pas encore connectée à la base Supabase et ne contient aucune donnée réelle.</div></div>
+  <div class="cards">
+   <article class="card"><div class="cardtop">Élèves inscrits <span class="cardicon">♙</span></div><div class="value">—</div><div class="sub">Données après connexion</div></article>
+   <article class="card"><div class="cardtop">Recettes du mois <span class="cardicon">₣</span></div><div class="value">—</div><div class="sub">USD et CDF</div></article>
+   <article class="card"><div class="cardtop">Paiements enregistrés <span class="cardicon">▤</span></div><div class="value">—</div><div class="sub">Toutes les opérations</div></article>
+   <article class="card"><div class="cardtop">Soldes à percevoir <span class="cardicon">◷</span></div><div class="value">—</div><div class="sub">Calculés par élève et frais</div></article>
+  </div>
+  <div class="grid">
+   <section class="panel"><div class="panelhead"><h2>Structure des classes</h2><span>15 classes prévues</span></div>
+    <table class="table"><thead><tr><th>Section</th><th>Classes</th><th>Statut</th></tr></thead><tbody>
+     <tr><td><b>Maternelle</b></td><td>1re à 3e</td><td><span class="tag">Prévu</span></td></tr>
+     <tr><td><b>Primaire</b></td><td>1re à 8e</td><td><span class="tag">Prévu</span></td></tr>
+     <tr><td><b>Humanités</b></td><td>1re à 4e</td><td><span class="tag">Prévu</span></td></tr>
+    </tbody></table>
+   </section>
+   <section class="panel"><div class="panelhead"><h2>Accès rapides</h2><span>Navigation</span></div>
+    <div class="quick">
+     <a href="#eleves">＋ Nouvel élève<span>Créer une fiche élève</span></a>
+     <a href="#paiements">＋ Encaisser<span>Enregistrer un versement</span></a>
+     <a href="#promotions">✓ Valider une décision<span>Promu, redouble ou sortant</span></a>
+     <a href="#rapports">▤ Consulter les rapports<span>Recettes et archives</span></a>
+    </div>
+   </section>
+  </div>
+  <div class="footnote">GESTION BÉATRICE · Interface de prévisualisation · Connexion Supabase à effectuer</div>
+ </section>
+</main>
+</div>
+</body></html>
