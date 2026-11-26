@@ -133,12 +133,17 @@ begin
     end if;
   end if;
 
+  excluded_payment_id := null;
+  if tg_op = 'UPDATE' then
+    excluded_payment_id := old.id;
+  end if;
+
   select coalesce(sum(p.amount_paid), 0)
     into already_paid
   from public.payments p
   where p.fee_tariff_id = new.fee_tariff_id
     and p.enrollment_id = new.enrollment_id
-    and (tg_op <> 'UPDATE' or p.id <> old.id);
+    and (excluded_payment_id is null or p.id <> excluded_payment_id);
 
   if already_paid + new.amount_paid > tariff_row.amount then
     raise exception 'Ce versement dépasserait le montant total dû. Solde disponible : % %.',
@@ -377,6 +382,7 @@ declare
   source_year public.school_years%rowtype;
   next_year public.school_years%rowtype;
   next_class_id smallint;
+  next_category_id smallint;
   next_enrollment_id uuid;
   class_code text;
   category_code text;
@@ -444,13 +450,41 @@ begin
 
     if p_decision = 'REDOUBLE' then
       next_class_id := source_enrollment.class_id;
+      next_category_id := source_enrollment.category_id;
     else
-      select id into next_class_id
-      from public.classes
-      where category_id = source_enrollment.category_id
-        and level_order = (
-          select level_order + 1 from public.classes where id = source_enrollment.class_id
-        );
+      -- La progression traverse aussi les frontières entre catégories :
+      -- MAT3 -> PRI1 et PRI8 -> SEC1.
+      select cl.id, cl.category_id
+        into next_class_id, next_category_id
+      from public.classes cl
+      join public.categories cat on cat.id = cl.category_id
+      where (
+        case cat.code
+          when 'MATERNELLE' then 1
+          when 'PRIMAIRE' then 2
+          when 'HUMANITE' then 3
+          else 99
+        end,
+        cl.level_order
+      ) > (
+        case category_code
+          when 'MATERNELLE' then 1
+          when 'PRIMAIRE' then 2
+          when 'HUMANITE' then 3
+          else 99
+        end,
+        (select level_order from public.classes where id = source_enrollment.class_id)
+      )
+      order by
+        case cat.code
+          when 'MATERNELLE' then 1
+          when 'PRIMAIRE' then 2
+          when 'HUMANITE' then 3
+          else 99
+        end,
+        cl.level_order
+      limit 1;
+
       if next_class_id is null then
         raise exception 'Aucune classe supérieure n’est définie pour cette classe.';
       end if;
@@ -459,7 +493,7 @@ begin
     insert into public.student_enrollments
       (student_id, school_year_id, category_id, class_id, option_id)
     values
-      (source_enrollment.student_id, next_year.id, source_enrollment.category_id,
+      (source_enrollment.student_id, next_year.id, next_category_id,
        next_class_id, source_enrollment.option_id)
     returning id into next_enrollment_id;
   end if;
