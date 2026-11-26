@@ -1,6 +1,6 @@
 # Cahier des charges — GESTION BÉATRICE
 
-**Version :** 0.3 — reconduction automatique des tarifs intégrée  
+**Version :** 0.4 — rôles et validation des décisions de passage précisés  
 **Statut :** document de cadrage évolutif
 
 ## 1. Objectif général
@@ -9,25 +9,41 @@ Mettre en place une application permettant d'enregistrer et de suivre les paieme
 
 ## 2. Profils et responsabilités
 
-### 2.1 Préfets
+L'application distingue trois profils : **ADMINISTRATEUR**, **PRÉFET** et **CAISSIER**. Chaque profil dispose uniquement des permissions correspondant à ses responsabilités.
 
-Les préfets assurent la supervision générale. Ils doivent pouvoir consulter :
-- les élèves et leurs paiements enregistrés ;
-- les élèves ayant payé et les dossiers sans paiement enregistré ;
-- les recettes et les montants encaissés ;
-- les soldes restant dus ;
-- les différentes catégories de frais et leur suivi.
+### 2.1 Administrateur
 
-### 2.2 Caissiers
+L'administrateur assure l'administration de l'application et la validation annuelle des décisions de passage des élèves. Il peut :
+- créer les comptes du préfet et des caissiers ;
+- modifier les informations des comptes, désactiver ou réactiver un compte ;
+- consulter les activités et les opérations effectuées par les utilisateurs ;
+- configurer les années scolaires et les jours fériés ;
+- créer et gérer la grille tarifaire de chaque année scolaire ;
+- consulter les élèves, les paiements et l'ensemble des recettes ;
+- après la proclamation des résultats, valider individuellement la décision de chaque élève pour l'année scolaire suivante : PROMU, REDOUBLE ou SORTANT ; la fin de cycle est enregistrée pour un élève qui termine la quatrième humanité.
 
-Les caissiers travaillent au guichet. Ils doivent pouvoir :
-- enregistrer un nouvel élève lors de son premier paiement ;
-- rechercher un élève par son nom ;
-- consulter les paiements déjà enregistrés ;
-- voir les montants encaissés et les soldes ;
-- enregistrer les versements et imprimer un ticket.
+L'administrateur ne réalise pas les opérations de caisse et ne modifie ni ne supprime directement les paiements.
 
-Les droits sont différenciés : les caissiers enregistrent et peuvent rectifier les paiements, mais ne peuvent pas les supprimer. Les préfets supervisent les recettes et peuvent supprimer un paiement avec motif et traçabilité, mais ne peuvent pas modifier un paiement. Le caissier suit ses propres recettes ; le préfet supervise les recettes de tous les caissiers.
+### 2.2 Préfet
+
+Le préfet assure la supervision pédagogique et financière de l'établissement. Il peut :
+- consulter les élèves, leurs inscriptions et les décisions de passage validées par l'administrateur ;
+- consulter tous les paiements, toutes les recettes et tous les soldes ;
+- superviser l'ensemble des caissiers ;
+- consulter les archives scolaires ;
+- supprimer un paiement uniquement avec un motif obligatoire et une traçabilité complète.
+
+Le préfet ne valide pas les décisions de passage en classe supérieure et ne modifie pas les paiements.
+
+### 2.3 Caissier
+
+Le caissier travaille au guichet. Il peut :
+- rechercher un élève inscrit pour l'année scolaire active ;
+- enregistrer les versements et imprimer les tickets ;
+- consulter ses propres paiements et ses propres recettes ;
+- rectifier ses propres paiements, avec conservation des anciennes et nouvelles valeurs.
+
+Le caissier ne peut ni supprimer un paiement, ni valider une décision de passage, ni administrer les comptes utilisateurs.
 
 ## 3. Organisation scolaire
 
@@ -144,10 +160,11 @@ Les clés et mots de passe devront rester dans les variables d'environnement et 
 
 ## 12. Points restant à définir
 
-- Date d'application initiale de la grille tarifaire (à confirmer). La reconduction automatique annuelle est validée ; les éventuelles modifications doivent être effectuées par un préfet ou administrateur habilité avant l'ouverture de l'année concernée.
+- Date d'application initiale de la grille tarifaire (à confirmer). La reconduction automatique annuelle est validée ; les modifications des tarifs annuels relèvent de l'administrateur.
 - Champs d'identification supplémentaires pour distinguer les homonymes.
-- Permissions précises de gestion des comptes utilisateurs (création, désactivation et administration).
 - Processus technique de rectification en caisse et de suppression par le préfet avec motif obligatoire.
+- Écran, calendrier et procédure de validation individuelle des décisions de passage par l'administrateur après la proclamation du 2 juillet.
+- Définir précisément les règles de passage automatique de classe après validation : promotion à la classe suivante, redoublement dans la même classe, sortie sans réinscription et fin de cycle après la quatrième humanité.
 - Contenu et format du ticket.
 - Rapports, filtres et périodes de consultation.
 - Confirmation du caractère obligatoire de l'option pour tous les élèves des humanités.
