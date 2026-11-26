@@ -94,9 +94,11 @@ declare
   tariff_row public.fee_tariffs%rowtype;
   already_paid numeric(14,2);
 begin
+  -- Verrouiller l'inscription sérialise les paiements simultanés du même élève/frais.
   select * into enrollment_row
   from public.student_enrollments
-  where id = new.enrollment_id;
+  where id = new.enrollment_id
+  for update;
 
   if not found then
     raise exception 'Inscription introuvable.';
@@ -321,6 +323,7 @@ as $$
 declare
   actor_id uuid;
   deleted_id uuid;
+  ticket_row public.tickets%rowtype;
 begin
   actor_id := public.current_profile_id();
 
@@ -332,6 +335,22 @@ begin
   end if;
 
   perform set_config('app.audit_reason', trim(p_reason), true);
+
+  -- Le ticket est conservé dans le journal avant la suppression requise par sa FK RESTRICT.
+  select * into ticket_row
+  from public.tickets
+  where payment_id = p_payment_id
+  for update;
+
+  if found then
+    insert into public.audit_logs
+      (actor_profile_id, action, table_name, record_id, old_data, reason)
+    values
+      (actor_id, 'DELETE', 'tickets', ticket_row.id::text,
+       to_jsonb(ticket_row), trim(p_reason));
+
+    delete from public.tickets where id = ticket_row.id;
+  end if;
 
   delete from public.payments
   where id = p_payment_id
