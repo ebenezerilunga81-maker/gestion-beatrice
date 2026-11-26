@@ -1,6 +1,6 @@
 # Cahier des charges — GESTION BÉATRICE
 
-**Version :** 0.2 — tarifs et organisation des humanités intégrés  
+**Version :** 0.3 — reconduction automatique des tarifs intégrée  
 **Statut :** document de cadrage évolutif
 
 ## 1. Objectif général
@@ -77,7 +77,7 @@ Les autres frais sont uniformes pour les 15 classes :
 - Frais techniques : 30 USD par élève.
 - Frais orgamat : 7 000 CDF par élève.
 
-Les frais techniques et orgamat sont distincts des frais scolaires et peuvent être suivis séparément. La grille de référence sera copiée dans les tarifs de chaque année scolaire afin de conserver les tarifs historiques. Les tarifs annuels pourront être adaptés ultérieurement par une personne habilitée si l'établissement communique une nouvelle grille.
+Les frais techniques et orgamat sont distincts des frais scolaires et peuvent être suivis séparément. La grille de référence sera automatiquement copiée dans les tarifs de chaque nouvelle année scolaire lors de sa création. Cette reconduction est le comportement normal : elle évite de ressaisir les tarifs chaque année et conserve un historique indépendant par année scolaire. Avant l'ouverture de l'année, un préfet ou un administrateur habilité pourra modifier les tarifs de cette année si l'établissement adopte une nouvelle grille. Ces ajustements ne modifieront ni la grille de référence ni les tarifs des années déjà enregistrées. Si aucune modification n'est décidée, les tarifs copiés resteront applicables.
 
 Pour les humanités, les tarifs communiqués sont identiques quelle que soit l'option ; le modèle de données permet néanmoins une différenciation par option si une décision future le demande.
 
@@ -144,7 +144,7 @@ Les clés et mots de passe devront rester dans les variables d'environnement et 
 
 ## 12. Points restant à définir
 
-- Confirmation de la date d'application de cette grille tarifaire et des règles d'actualisation annuelle.
+- Date d'application initiale de la grille tarifaire (à confirmer). La reconduction automatique annuelle est validée ; les éventuelles modifications doivent être effectuées par un préfet ou administrateur habilité avant l'ouverture de l'année concernée.
 - Champs d'identification supplémentaires pour distinguer les homonymes.
 - Permissions précises de gestion des comptes utilisateurs (création, désactivation et administration).
 - Processus technique de rectification en caisse et de suppression par le préfet avec motif obligatoire.
