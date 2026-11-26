@@ -270,7 +270,11 @@ begin
     actor_id := public.current_profile_id();
     operation_reason := nullif(current_setting('app.audit_reason', true), '');
 
-    if tg_op = 'UPDATE' then
+    if tg_op = 'INSERT' then
+        insert into public.audit_logs(actor_profile_id, action, table_name, record_id, new_data)
+        values (actor_id, 'INSERT', 'payments', new.id::text, to_jsonb(new));
+        return new;
+    elsif tg_op = 'UPDATE' then
         insert into public.audit_logs(actor_profile_id, action, table_name, record_id, old_data, new_data, reason)
         values (actor_id, 'UPDATE', 'payments', old.id::text, to_jsonb(old), to_jsonb(new), operation_reason);
         return new;
@@ -288,7 +292,7 @@ $$;
 
 drop trigger if exists payments_audit_changes on public.payments;
 create trigger payments_audit_changes
-after update or delete on public.payments
+after insert or update or delete on public.payments
 for each row execute function public.log_payment_changes();
 
 -- 11. Activer RLS sur les tables contenant des données sensibles.
