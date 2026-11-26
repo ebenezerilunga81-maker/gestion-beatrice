@@ -4,7 +4,8 @@
 -- IMPORTANT : ce fichier prépare la structure. Il n'a PAS été exécuté sur Supabase.
 -- Les comptes d'authentification sont gérés par Supabase Auth.
 -- Les tarifs communiqués par l'établissement sont enregistrés comme grille de référence.
--- Les tarifs annuels seront copiés depuis cette grille lors de la création de chaque année.
+-- Les tarifs annuels sont automatiquement copiés depuis cette grille à la création de chaque année.
+-- Un préfet/administrateur habilité pourra ensuite ajuster les tarifs de l'année concernée sans modifier les archives ni la grille de référence.
 
 begin;
 
@@ -141,6 +142,34 @@ create table if not exists public.fee_tariff_templates (
     created_at timestamptz not null default now(),
     unique nulls not distinct (fee_type_id, category_id, class_id, option_id)
 );
+
+-- À chaque création d'une année scolaire, recopier automatiquement la grille de référence.
+-- Les tarifs annuels sont ensuite indépendants : leur modification ne touche pas le modèle
+-- ni les années précédentes. Les modifications seront réservées aux rôles habilités.
+create or replace function public.copy_fee_templates_to_school_year()
+returns trigger
+language plpgsql
+security definer
+set search_path = public
+as $
+begin
+    insert into public.fee_tariffs
+        (school_year_id, fee_type_id, category_id, class_id, option_id, amount, currency, is_active)
+    select
+        new.id, t.fee_type_id, t.category_id, t.class_id, t.option_id,
+        t.amount, t.currency, t.is_active
+    from public.fee_tariff_templates t
+    where t.is_active = true
+    on conflict (school_year_id, fee_type_id, category_id, class_id, option_id)
+    do nothing;
+    return new;
+end;
+$;
+
+drop trigger if exists school_year_copy_fee_templates on public.school_years;
+create trigger school_year_copy_fee_templates
+after insert on public.school_years
+for each row execute function public.copy_fee_templates_to_school_year();
 
 -- 6. Paiements et tickets
 create table if not exists public.payments (
@@ -526,7 +555,7 @@ commit;
 -- À compléter avant mise en service :
 -- 1) Créer les comptes dans Supabase Auth, puis leurs profils dans public.profiles.
 -- 2) Insérer les années scolaires et les jours fériés officiels RDC.
--- 3) Copier la grille fee_tariff_templates vers fee_tariffs pour chaque nouvelle année scolaire.
+-- 3) La copie automatique fee_tariff_templates -> fee_tariffs est déclenchée à la création de chaque année scolaire ; vérifier les tarifs générés puis autoriser les ajustements de l'année avant son ouverture.
 -- 4) Développer une fonction transactionnelle de promotion/redoublement/sortie.
 -- 5) Développer une procédure sécurisée de suppression avec motif obligatoire.
 -- 6) Vérifier les règles RLS avec des comptes de test PREFET et CAISSIER.
