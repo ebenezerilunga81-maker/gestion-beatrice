@@ -1,6 +1,6 @@
 # Cahier des charges — GESTION BÉATRICE
 
-**Version :** 0.1 — exigences recueillies  
+**Version :** 0.2 — tarifs et organisation des humanités intégrés  
 **Statut :** document de cadrage évolutif
 
 ## 1. Objectif général
@@ -27,7 +27,7 @@ Les caissiers travaillent au guichet. Ils doivent pouvoir :
 - voir les montants encaissés et les soldes ;
 - enregistrer les versements et imprimer un ticket.
 
-Les droits exacts de création, modification, désactivation et suppression des comptes restent à préciser.
+Les droits sont différenciés : les caissiers enregistrent et peuvent rectifier les paiements, mais ne peuvent pas les supprimer. Les préfets supervisent les recettes et peuvent supprimer un paiement avec motif et traçabilité, mais ne peuvent pas modifier un paiement. Le caissier suit ses propres recettes ; le préfet supervise les recettes de tous les caissiers.
 
 ## 3. Organisation scolaire
 
@@ -37,13 +37,13 @@ Les catégories et classes sont prédéfinies dans l'application.
 |---|---|
 | Maternelle | Première maternelle, Deuxième maternelle, Troisième maternelle |
 | Primaire | Première primaire, Deuxième primaire, Troisième primaire, Quatrième primaire, Cinquième primaire, Sixième primaire, Septième primaire, Huitième primaire |
-| Secondaire | Première secondaire, Deuxième secondaire, Troisième secondaire, Quatrième secondaire |
+| Humanité | Première humanité, Deuxième humanité, Troisième humanité, Quatrième humanité |
 
 Chaque élève doit obligatoirement être associé à une catégorie et à une classe. La liste des classes proposée doit dépendre de la catégorie sélectionnée.
 
-### 3.1 Options du secondaire
+### 3.1 Options du humanités
 
-Pour les élèves du secondaire, l'option doit être enregistrée avec la classe. Les options communiquées sont :
+Pour les élèves des humanités, l'option doit être enregistrée avec la classe. Les options communiquées sont :
 1. Pédagogique
 2. Scientifique
 3. Coupe et couture
@@ -53,7 +53,7 @@ Pour les élèves du secondaire, l'option doit être enregistrée avec la classe
 7. Électricité
 8. Construction
 
-Ces options concernent les quatre classes du secondaire. Leur caractère obligatoire pour chaque inscription secondaire reste à confirmer.
+Ces options concernent les quatre classes du humanités. Leur caractère obligatoire pour chaque inscription humanités reste à confirmer.
 
 ## 4. Types de frais et tarifs
 
@@ -62,11 +62,28 @@ Les types de frais prédéfinis sont :
 - Frais techniques
 - Frais orgamat
 
-Les tarifs de référence seront définis à l'avance pour chaque type de frais. Les montants exacts ne sont pas encore communiqués.
+### Grille tarifaire communiquée
+
+Les tarifs sont exprimés dans deux devises, selon le type de frais :
+
+| Catégorie / classe | Frais scolaires |
+|---|---:|
+| Première, deuxième et troisième maternelle | 210 USD |
+| Première à huitième primaire | 170 USD |
+| Première, deuxième et troisième humanité | 180 USD |
+| Quatrième humanité | 220 USD |
+
+Les autres frais sont uniformes pour les 15 classes :
+- Frais techniques : 30 USD par élève.
+- Frais orgamat : 7 000 CDF par élève.
+
+Les frais techniques et orgamat sont distincts des frais scolaires et peuvent être suivis séparément. La grille de référence sera copiée dans les tarifs de chaque année scolaire afin de conserver les tarifs historiques. Les tarifs annuels pourront être adaptés ultérieurement par une personne habilitée si l'établissement communique une nouvelle grille.
+
+Pour les humanités, les tarifs communiqués sont identiques quelle que soit l'option ; le modèle de données permet néanmoins une différenciation par option si une décision future le demande.
 
 ## 5. Élèves et identification
 
-Pour la première version, il n'y a pas de préinscription complète des élèves. Lors du premier paiement, le caissier saisit le nom de l'élève et sélectionne sa catégorie, sa classe et, pour le secondaire, son option.
+Pour la première version, il n'y a pas de préinscription complète des élèves. Lors du premier paiement, le caissier saisit le nom de l'élève et sélectionne sa catégorie, sa classe et, pour le humanités, son option.
 
 La recherche se fait par nom. Pour éviter de créer plusieurs fiches pour un même élève, un mécanisme d'identification complémentaire pourra être défini. Le nom seul peut être insuffisant en cas d'homonymie ; aucun champ supplémentaire obligatoire n'est imposé à ce stade.
 
@@ -82,7 +99,7 @@ Parcours prévu au guichet :
 1. Saisir le nom de l'élève.
 2. Sélectionner la catégorie.
 3. Sélectionner la classe correspondante.
-4. Sélectionner l'option si l'élève est au secondaire.
+4. Sélectionner l'option si l'élève est au humanités.
 5. Sélectionner le type de frais.
 6. Saisir le montant réellement reçu.
 7. Valider le paiement.
@@ -127,13 +144,13 @@ Les clés et mots de passe devront rester dans les variables d'environnement et 
 
 ## 12. Points restant à définir
 
-- Tarifs exacts par type de frais et éventuelles différences selon la classe ou l'option.
+- Confirmation de la date d'application de cette grille tarifaire et des règles d'actualisation annuelle.
 - Champs d'identification supplémentaires pour distinguer les homonymes.
-- Permissions précises de gestion des comptes.
-- Règle de traitement des corrections ou annulations de paiements.
+- Permissions précises de gestion des comptes utilisateurs (création, désactivation et administration).
+- Processus technique de rectification en caisse et de suppression par le préfet avec motif obligatoire.
 - Contenu et format du ticket.
 - Rapports, filtres et périodes de consultation.
-- Confirmation du caractère obligatoire de l'option pour tous les élèves du secondaire.
+- Confirmation du caractère obligatoire de l'option pour tous les élèves des humanités.
 - Politique de sauvegarde et de restauration.
 
 Ce document sera complété au fur et à mesure des décisions validées. Aucune règle non confirmée ne doit être considérée comme définitive.
