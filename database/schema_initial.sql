@@ -151,7 +151,7 @@ returns trigger
 language plpgsql
 security definer
 set search_path = public
-as $
+as $$
 begin
     insert into public.fee_tariffs
         (school_year_id, fee_type_id, category_id, class_id, option_id, amount, currency, is_active)
@@ -164,7 +164,7 @@ begin
     do nothing;
     return new;
 end;
-$;
+$$;
 
 drop trigger if exists school_year_copy_fee_templates on public.school_years;
 create trigger school_year_copy_fee_templates
