@@ -3,7 +3,8 @@
 -- Cible : Supabase PostgreSQL
 -- IMPORTANT : ce fichier prépare la structure. Il n'a PAS été exécuté sur Supabase.
 -- Les comptes d'authentification sont gérés par Supabase Auth.
--- Les montants de tarifs officiels ne sont volontairement pas préchargés.
+-- Les tarifs communiqués par l'établissement sont enregistrés comme grille de référence.
+-- Les tarifs annuels seront copiés depuis cette grille lors de la création de chaque année.
 
 begin;
 
@@ -124,6 +125,21 @@ create table if not exists public.fee_tariffs (
     -- NULLS NOT DISTINCT évite les doublons de tarifs généraux (sans classe/option).
     unique nulls not distinct
         (school_year_id, fee_type_id, category_id, class_id, option_id)
+);
+
+-- Grille tarifaire de référence communiquée pour le projet.
+-- Elle est indépendante d'une année scolaire et sert à initialiser les tarifs annuels.
+create table if not exists public.fee_tariff_templates (
+    id uuid primary key default gen_random_uuid(),
+    fee_type_id smallint not null references public.fee_types(id) on delete restrict,
+    category_id smallint not null references public.categories(id) on delete restrict,
+    class_id smallint not null references public.classes(id) on delete restrict,
+    option_id smallint references public.options(id) on delete restrict,
+    amount numeric(14,2) not null check (amount >= 0),
+    currency char(3) not null check (currency in ('USD', 'CDF')),
+    is_active boolean not null default true,
+    created_at timestamptz not null default now(),
+    unique nulls not distinct (fee_type_id, category_id, class_id, option_id)
 );
 
 -- 6. Paiements et tickets
@@ -311,6 +327,7 @@ alter table public.school_years enable row level security;
 alter table public.holidays enable row level security;
 alter table public.fee_types enable row level security;
 alter table public.fee_tariffs enable row level security;
+alter table public.fee_tariff_templates enable row level security;
 
 create policy "profiles_read_self_or_prefet"
 on public.profiles for select to authenticated
@@ -411,12 +428,14 @@ create policy "fee_types_read_authenticated" on public.fee_types
 for select to authenticated using (public.current_profile_id() is not null);
 create policy "fee_tariffs_read_authenticated" on public.fee_tariffs
 for select to authenticated using (public.current_profile_id() is not null);
+create policy "fee_tariff_templates_read_authenticated" on public.fee_tariff_templates
+for select to authenticated using (public.current_profile_id() is not null);
 
 -- 12. Données de référence initiales
 insert into public.categories(code, name) values
     ('MATERNELLE', 'Maternelle'),
     ('PRIMAIRE', 'Primaire'),
-    ('SECONDAIRE', 'Secondaire')
+    ('HUMANITE', 'Humanité')
 on conflict (code) do nothing;
 
 insert into public.classes(category_id, code, name, level_order)
@@ -434,10 +453,10 @@ join (values
     ('PRIMAIRE','PRI6','Sixième primaire',6),
     ('PRIMAIRE','PRI7','Septième primaire',7),
     ('PRIMAIRE','PRI8','Huitième primaire',8),
-    ('SECONDAIRE','SEC1','Première secondaire',1),
-    ('SECONDAIRE','SEC2','Deuxième secondaire',2),
-    ('SECONDAIRE','SEC3','Troisième secondaire',3),
-    ('SECONDAIRE','SEC4','Quatrième secondaire',4)
+    ('HUMANITE','SEC1','Première humanité',1),
+    ('HUMANITE','SEC2','Deuxième humanité',2),
+    ('HUMANITE','SEC3','Troisième humanité',3),
+    ('HUMANITE','SEC4','Quatrième humanité',4)
 ) as v(category_code, code, name, level_order)
   on c.code = v.category_code
 on conflict (code) do nothing;
@@ -459,12 +478,55 @@ insert into public.fee_types(code, name) values
     ('ORGAMAT','Frais orgamat')
 on conflict (code) do nothing;
 
+-- Frais scolaires : maternelle 210 USD ; primaire 170 USD ;
+-- 1re à 3e humanité 180 USD ; 4e humanité 220 USD.
+insert into public.fee_tariff_templates
+    (fee_type_id, category_id, class_id, option_id, amount, currency)
+select ft.id, c.id, cl.id, null, v.amount, 'USD'
+from (values
+    ('MATERNELLE','MAT1',210::numeric),
+    ('MATERNELLE','MAT2',210::numeric),
+    ('MATERNELLE','MAT3',210::numeric),
+    ('PRIMAIRE','PRI1',170::numeric),
+    ('PRIMAIRE','PRI2',170::numeric),
+    ('PRIMAIRE','PRI3',170::numeric),
+    ('PRIMAIRE','PRI4',170::numeric),
+    ('PRIMAIRE','PRI5',170::numeric),
+    ('PRIMAIRE','PRI6',170::numeric),
+    ('PRIMAIRE','PRI7',170::numeric),
+    ('PRIMAIRE','PRI8',170::numeric),
+    ('HUMANITE','SEC1',180::numeric),
+    ('HUMANITE','SEC2',180::numeric),
+    ('HUMANITE','SEC3',180::numeric),
+    ('HUMANITE','SEC4',220::numeric)
+) as v(category_code, class_code, amount)
+join public.categories c on c.code = v.category_code
+join public.classes cl on cl.code = v.class_code
+join public.fee_types ft on ft.code = 'SCOLAIRES'
+on conflict do nothing;
+
+-- Frais techniques : 30 USD pour les 15 classes.
+insert into public.fee_tariff_templates
+    (fee_type_id, category_id, class_id, option_id, amount, currency)
+select ft.id, cl.category_id, cl.id, null, 30, 'USD'
+from public.classes cl
+join public.fee_types ft on ft.code = 'TECHNIQUES'
+on conflict do nothing;
+
+-- Frais orgamat : 7 000 CDF pour les 15 classes.
+insert into public.fee_tariff_templates
+    (fee_type_id, category_id, class_id, option_id, amount, currency)
+select ft.id, cl.category_id, cl.id, null, 7000, 'CDF'
+from public.classes cl
+join public.fee_types ft on ft.code = 'ORGAMAT'
+on conflict do nothing;
+
 commit;
 
 -- À compléter avant mise en service :
 -- 1) Créer les comptes dans Supabase Auth, puis leurs profils dans public.profiles.
 -- 2) Insérer les années scolaires et les jours fériés officiels RDC.
--- 3) Ajouter les tarifs de démonstration validés (aucun montant officiel n'est fourni ici).
+-- 3) Copier la grille fee_tariff_templates vers fee_tariffs pour chaque nouvelle année scolaire.
 -- 4) Développer une fonction transactionnelle de promotion/redoublement/sortie.
 -- 5) Développer une procédure sécurisée de suppression avec motif obligatoire.
 -- 6) Vérifier les règles RLS avec des comptes de test PREFET et CAISSIER.
