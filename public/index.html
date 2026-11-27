@@ -139,15 +139,38 @@
    const confirmPassword = document.getElementById("confirmPassword").value;
    if (newPassword.length < 8) { recoveryError.textContent = "Le mot de passe doit contenir au moins 8 caractères."; recoveryError.style.display = "block"; return; }
    if (newPassword !== confirmPassword) { recoveryError.textContent = "Les deux mots de passe ne correspondent pas."; recoveryError.style.display = "block"; return; }
+   const accessToken = hash.get("access_token");
+   const refreshToken = hash.get("refresh_token");
+   if (!accessToken || !refreshToken) {
+     recoveryError.textContent = "Le lien reçu est incomplet ou a déjà été ouvert. Demandez un nouvel e-mail de réinitialisation, puis ouvrez directement le dernier lien reçu.";
+     recoveryError.style.display = "block";
+     return;
+   }
    recoverySubmit.disabled = true;
    recoverySubmit.textContent = "Enregistrement…";
    try {
      const response = await fetch(API_BASE + "/api/auth/set-password", {
        method: "POST", headers: {"Content-Type":"application/json"},
-       body: JSON.stringify({access_token: hash.get("access_token"), refresh_token: hash.get("refresh_token"), password: newPassword})
+       body: JSON.stringify({access_token: accessToken, refresh_token: refreshToken, password: newPassword})
      });
      const data = await response.json().catch(() => ({}));
-     if (!response.ok) throw new Error(data.detail || "Impossible de définir le mot de passe.");
+     if (!response.ok) {
+       const detail = data.detail;
+       let message = "Impossible de définir le mot de passe. Demandez un nouvel e-mail de réinitialisation.";
+       if (Array.isArray(detail)) {
+         const fields = detail.map(item => Array.isArray(item.loc) ? item.loc[item.loc.length - 1] : "").filter(Boolean);
+         message = fields.includes("access_token") || fields.includes("refresh_token")
+           ? "Le lien de réinitialisation est incomplet ou expiré. Demandez un nouvel e-mail et ouvrez le lien le plus récent."
+           : fields.includes("password")
+             ? "Le mot de passe doit contenir entre 8 et 128 caractères."
+             : "Les informations du formulaire sont incomplètes. Rechargez le dernier lien reçu et réessayez.";
+       } else if (typeof detail === "string") {
+         message = detail;
+       } else if (typeof data.message === "string") {
+         message = data.message;
+       }
+       throw new Error(message);
+     }
      recoveryPanel.innerHTML = '<div class="login-error" style="display:block;background:#effaf4;border-color:#bfe6ce;color:#17643a"></div><button class="login-submit" id="backToLogin" type="button">Retour à la connexion</button>';
      recoveryPanel.querySelector(".login-error").textContent = data.message || "Mot de passe enregistré.";
      document.getElementById("backToLogin").addEventListener("click", () => window.location.replace(window.location.pathname));
