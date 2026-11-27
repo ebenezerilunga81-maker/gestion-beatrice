@@ -504,7 +504,7 @@ def dashboard(context=Depends(current_profile)):
     year = year_data[0] if year_data else None
     if not year:
         return {"active_year": None, "students": 0, "payments": 0, "revenue": [],
-                "balances": [], "recent_payments": [], "balances": [],
+                "balances": [], "recent_payments": [],
                 "message": "Aucune année scolaire active. Le tableau de bord sera complet après l’ouverture de l’année scolaire."}
 
     enrollments = client.table("student_enrollments").select(
@@ -621,7 +621,9 @@ def activate_school_year(year_id: UUID, context=Depends(require_roles("ADMINISTR
 @app.get("/api/students")
 def list_students(q: str = "", context=Depends(require_roles("ADMINISTRATEUR", "PREFET", "PROMOTEUR", "CAISSIER"))):
     client = admin_client()
-    year = client.table("school_years").select("id,label").eq("is_active", True).maybe_single().execute().data
+    year_rows = client.table("school_years").select("id,label").eq("is_active", True).limit(1).execute()
+    year_data = year_rows.data if year_rows is not None else None
+    year = year_data[0] if year_data else None
     if not year:
         return {"students": [], "active_year": None}
 
