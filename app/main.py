@@ -50,7 +50,7 @@ app.add_middleware(
     CORSMiddleware,
     allow_origins=[FRONTEND_ORIGIN],
     allow_credentials=True,
-    allow_methods=["GET", "POST", "PATCH", "OPTIONS"],
+    allow_methods=["GET", "POST", "PATCH", "DELETE", "OPTIONS"],
     allow_headers=["Authorization", "Content-Type"],
 )
 
@@ -81,18 +81,24 @@ class LoginInput(BaseModel):
 
 
 class CreateUserInput(BaseModel):
-    email: EmailStr
+    model_config = ConfigDict(extra="forbid")
     password: str = Field(min_length=12, max_length=128)
     full_name: str = Field(min_length=2, max_length=160)
-    username: Optional[str] = Field(default=None, min_length=3, max_length=40, pattern="^[A-Za-z0-9_.-]+$")
-    role: str = Field(pattern="^(PREFET|CAISSIER)$")
+    username: str = Field(min_length=3, max_length=40, pattern="^[A-Za-z0-9_.-]+$")
+    role: str = Field(pattern="^(PROMOTEUR|PREFET|CAISSIER)$")
 
 
 class UpdateUserInput(BaseModel):
     model_config = ConfigDict(extra="forbid")
     full_name: Optional[str] = Field(default=None, min_length=2, max_length=160)
-    role: Optional[str] = Field(default=None, pattern="^(PREFET|CAISSIER)$")
+    username: Optional[str] = Field(default=None, min_length=3, max_length=40, pattern="^[A-Za-z0-9_.-]+$")
+    role: Optional[str] = Field(default=None, pattern="^(PROMOTEUR|PREFET|CAISSIER)$")
     is_active: Optional[bool] = None
+
+
+class ResetUserPasswordInput(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+    password: str = Field(min_length=12, max_length=128)
 
 
 def bearer_token(authorization: Optional[str] = Header(default=None)) -> str:
@@ -308,7 +314,7 @@ def list_users(context=Depends(require_admin)):
     try:
         rows = admin_client().table("profiles").select(
             "id,auth_user_id,full_name,username,role,is_active,created_at"
-        ).in_("role", ["PREFET", "CAISSIER"]).order("created_at", desc=True).execute().data
+        ).in_("role", ["PROMOTEUR", "PREFET", "CAISSIER"]).order("created_at", desc=True).execute().data
         return {"users": rows or []}
     except Exception:
         logger.exception("Liste des comptes indisponible")
@@ -319,19 +325,20 @@ def list_users(context=Depends(require_admin)):
 def create_user(payload: CreateUserInput, context=Depends(require_admin)):
     client = admin_client()
     auth_id = None
+    username = payload.username.strip().upper()
     try:
+        duplicate = client.table("profiles").select("id").ilike("username", username).limit(1).execute().data
+        if duplicate:
+            raise HTTPException(status_code=409, detail="Cet identifiant est déjà utilisé.")
+        # Adresse synthétique unique sur le domaine réservé example.com ; aucune adresse personnelle n'est requise.
+        internal_email = f"{username.lower()}.{secrets.token_hex(6)}@example.com"
         created = client.auth.admin.create_user({
-            "email": str(payload.email), "password": payload.password,
-            "email_confirm": True, "user_metadata": {"full_name": payload.full_name.strip()},
+            "email": internal_email, "password": payload.password,
+            "email_confirm": True, "user_metadata": {"full_name": payload.full_name.strip(), "username": username},
         })
         if not created.user:
             raise RuntimeError("Auth user missing")
         auth_id = str(created.user.id)
-        username = payload.username.strip().upper() if payload.username else None
-        if username:
-            duplicate = client.table("profiles").select("id").ilike("username", username).limit(1).execute().data
-            if duplicate:
-                raise HTTPException(status_code=409, detail="Cet identifiant est déjà utilisé.")
         inserted = client.table("profiles").insert({
             "auth_user_id": auth_id, "full_name": payload.full_name.strip(),
             "username": username, "role": payload.role, "is_active": True,
@@ -354,19 +361,24 @@ def create_user(payload: CreateUserInput, context=Depends(require_admin)):
                 client.auth.admin.delete_user(auth_id)
             except Exception:
                 logger.exception("Nettoyage Auth impossible après erreur")
-        raise HTTPException(status_code=400, detail="Création impossible. Vérifiez l'adresse e-mail et réessayez.")
+        raise HTTPException(status_code=400, detail="Création impossible. Vérifiez l'identifiant et le mot de passe puis réessayez.")
 
 
 @app.patch("/api/admin/users/{profile_id}")
 def update_user(profile_id: UUID, payload: UpdateUserInput, context=Depends(require_admin)):
     changes = payload.model_dump(exclude_unset=True, exclude_none=True)
+    if "username" in changes:
+        changes["username"] = changes["username"].strip().upper()
+        duplicate = admin_client().table("profiles").select("id").ilike("username", changes["username"]).neq("id", str(profile_id)).limit(1).execute().data
+        if duplicate:
+            raise HTTPException(status_code=409, detail="Cet identifiant est déjà utilisé.")
     if not changes:
         raise HTTPException(status_code=400, detail="Aucune modification fournie.")
     client = admin_client()
     try:
         before = client.table("profiles").select(
-            "id,auth_user_id,full_name,role,is_active"
-        ).eq("id", str(profile_id)).in_("role", ["PREFET", "CAISSIER"]).maybe_single().execute().data
+            "id,auth_user_id,full_name,username,role,is_active"
+        ).eq("id", str(profile_id)).in_("role", ["PROMOTEUR", "PREFET", "CAISSIER"]).maybe_single().execute().data
         if not before:
             raise HTTPException(status_code=404, detail="Compte introuvable.")
         after_rows = client.table("profiles").update(changes).eq("id", str(profile_id)).execute().data
@@ -382,6 +394,53 @@ def update_user(profile_id: UUID, payload: UpdateUserInput, context=Depends(requ
     except Exception:
         logger.exception("Modification de compte impossible")
         raise HTTPException(status_code=400, detail="Modification du compte impossible.")
+
+
+@app.post("/api/admin/users/{profile_id}/reset-password")
+def reset_user_password(profile_id: UUID, payload: ResetUserPasswordInput, context=Depends(require_admin)):
+    client = admin_client()
+    try:
+        target = client.table("profiles").select("id,auth_user_id,full_name,role").eq(
+            "id", str(profile_id)
+        ).in_("role", ["PROMOTEUR", "PREFET", "CAISSIER"]).maybe_single().execute().data
+        if not target:
+            raise HTTPException(status_code=404, detail="Compte introuvable ou non réinitialisable.")
+        client.auth.admin.update_user_by_id(target["auth_user_id"], {"password": payload.password})
+        write_audit("RESET_USER_PASSWORD", context["profile"]["id"], str(profile_id),
+                    new_data={"password_reset": True, "role": target["role"]})
+        return {"status": "updated", "message": "Nouveau mot de passe enregistré. Communiquez-le directement à l'utilisateur."}
+    except HTTPException:
+        raise
+    except Exception:
+        logger.exception("Réinitialisation du mot de passe impossible")
+        raise HTTPException(status_code=400, detail="Impossible de modifier le mot de passe.")
+
+
+@app.delete("/api/admin/users/{profile_id}")
+def delete_user(profile_id: UUID, context=Depends(require_admin)):
+    client = admin_client()
+    try:
+        target = client.table("profiles").select("id,auth_user_id,full_name,username,role").eq(
+            "id", str(profile_id)
+        ).in_("role", ["PROMOTEUR", "PREFET", "CAISSIER"]).maybe_single().execute().data
+        if not target:
+            raise HTTPException(status_code=404, detail="Compte introuvable ou suppression interdite.")
+        # Conserver l'intégrité financière : tout compte ayant encaissé un paiement
+        # reste dans l'historique et doit être désactivé plutôt que supprimé.
+        linked = client.table("payments").select("id").eq("cashier_id", str(profile_id)).limit(1).execute().data
+        if linked:
+            raise HTTPException(status_code=409, detail="Ce compte est associé à des paiements enregistrés. Désactivez-le pour conserver l'historique financier.")
+        write_audit("DELETE_PROFILE", context["profile"]["id"], str(profile_id),
+                    old_data={"full_name": target["full_name"], "username": target["username"], "role": target["role"]})
+        client.table("payments").update({"annulled_by": None}).eq("annulled_by", str(profile_id)).execute()
+        client.table("student_enrollments").update({"decision_validated_by": None}).eq("decision_validated_by", str(profile_id)).execute()
+        client.auth.admin.delete_user(target["auth_user_id"])
+        return {"status": "deleted", "message": "Compte supprimé. Les inscriptions, paiements et journaux sont conservés."}
+    except HTTPException:
+        raise
+    except Exception:
+        logger.exception("Suppression définitive du compte impossible")
+        raise HTTPException(status_code=400, detail="Suppression impossible. Les données liées à ce compte doivent être vérifiées.")
 
 
 # ---------------------------------------------------------------------------
@@ -463,7 +522,7 @@ def dashboard(context=Depends(current_profile)):
 
 
 @app.get("/api/admin/school-years")
-def list_school_years(context=Depends(require_roles("ADMINISTRATEUR", "PREFET"))):
+def list_school_years(context=Depends(require_roles("ADMINISTRATEUR", "PREFET", "PROMOTEUR"))):
     return {"school_years": _rows("school_years")}
 
 
@@ -519,7 +578,7 @@ def activate_school_year(year_id: UUID, context=Depends(require_roles("ADMINISTR
 
 
 @app.get("/api/students")
-def list_students(q: str = "", context=Depends(require_roles("ADMINISTRATEUR", "PREFET", "CAISSIER"))):
+def list_students(q: str = "", context=Depends(require_roles("ADMINISTRATEUR", "PREFET", "PROMOTEUR", "CAISSIER"))):
     client = admin_client()
     year = client.table("school_years").select("id").eq("is_active", True).maybe_single().execute().data
     if not year:
@@ -558,7 +617,7 @@ class EnrollmentInput(BaseModel):
 
 
 @app.post("/api/enrollments", status_code=201)
-def create_enrollment(payload: EnrollmentInput, context=Depends(require_roles("PREFET", "CAISSIER"))):
+def create_enrollment(payload: EnrollmentInput, context=Depends(require_roles("PROMOTEUR", "PREFET", "CAISSIER"))):
     client = admin_client()
     year = client.table("school_years").select("id").eq("is_active", True).maybe_single().execute().data
     if not year:
@@ -604,7 +663,7 @@ def create_enrollment(payload: EnrollmentInput, context=Depends(require_roles("P
 
 
 @app.get("/api/payments")
-def list_payments(context=Depends(require_roles("ADMINISTRATEUR", "PREFET", "CAISSIER"))):
+def list_payments(context=Depends(require_roles("ADMINISTRATEUR", "PREFET", "PROMOTEUR", "CAISSIER"))):
     client = admin_client()
     profile = context["profile"]
     query = client.table("payments").select("*").order("payment_date", desc=True).limit(300)
@@ -678,7 +737,7 @@ class CancelPaymentInput(BaseModel):
 
 
 @app.post("/api/payments/{payment_id}/cancel")
-def cancel_payment(payment_id: UUID, payload: CancelPaymentInput, context=Depends(require_roles("PREFET"))):
+def cancel_payment(payment_id: UUID, payload: CancelPaymentInput, context=Depends(require_roles("PROMOTEUR", "PREFET"))):
     client = admin_client()
     payment = client.table("payments").select("*").eq("id", str(payment_id)).maybe_single().execute().data
     if not payment:
@@ -693,7 +752,7 @@ def cancel_payment(payment_id: UUID, payload: CancelPaymentInput, context=Depend
 
 
 @app.get("/api/admin/tariffs")
-def list_tariffs(context=Depends(require_roles("ADMINISTRATEUR", "PREFET"))):
+def list_tariffs(context=Depends(require_roles("ADMINISTRATEUR", "PREFET", "PROMOTEUR"))):
     return {"templates": _rows("fee_tariff_templates"), "tariffs": _rows("fee_tariffs")}
 
 
@@ -735,7 +794,7 @@ def validate_decision(enrollment_id: UUID, payload: DecisionInput, context=Depen
 
 
 @app.get("/api/reports/summary")
-def report_summary(context=Depends(require_roles("ADMINISTRATEUR", "PREFET"))):
+def report_summary(context=Depends(require_roles("ADMINISTRATEUR", "PREFET", "PROMOTEUR"))):
     client = admin_client()
     years = client.table("school_years").select("*").order("start_date", desc=True).execute().data or []
     payments = client.table("payments").select("*").order("payment_date", desc=True).limit(2000).execute().data or []
