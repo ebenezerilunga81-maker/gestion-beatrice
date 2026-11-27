@@ -447,7 +447,40 @@ def delete_user(profile_id: UUID, context=Depends(require_admin)):
 # Modules métier GESTION BÉATRICE — API protégée par rôle
 # ---------------------------------------------------------------------------
 from datetime import date as Date, datetime, timezone
-from decimal import Decimal, InvalidOperation
+from decimal import Decimal, InvalidOperation, ROUND_HALF_UP
+
+
+EXCHANGE_RATE_CDF_PER_USD = Decimal("2300")
+MONEY_QUANTUM = Decimal("0.01")
+
+
+def amount_to_usd(amount, currency):
+    """Convertit un montant source en USD avec le taux fixe et un arrondi monétaire."""
+    value = Decimal(str(amount))
+    code = str(currency or "").strip().upper()
+    if code == "USD":
+        return value.quantize(MONEY_QUANTUM, rounding=ROUND_HALF_UP)
+    if code == "CDF":
+        converted = (value / EXCHANGE_RATE_CDF_PER_USD).quantize(
+            MONEY_QUANTUM, rounding=ROUND_HALF_UP
+        )
+        if converted <= 0:
+            raise HTTPException(status_code=422, detail="Le montant en CDF est trop faible après conversion en USD.")
+        return converted
+    raise HTTPException(status_code=422, detail="La devise doit être USD ou CDF.")
+
+
+def payment_amount_usd(payment):
+    """Lit l'équivalent USD figé; les anciens paiements USD restent compatibles."""
+    stored = payment.get("amount_usd")
+    if stored is not None:
+        return Decimal(str(stored))
+    if str(payment.get("currency", "")).strip().upper() == "USD":
+        return Decimal(str(payment["amount_paid"])).quantize(
+            MONEY_QUANTUM, rounding=ROUND_HALF_UP
+        )
+    # Ne jamais recalculer un ancien paiement CDF avec le nouveau taux.
+    return Decimal("0")
 
 
 def require_roles(*roles):
@@ -518,14 +551,14 @@ def dashboard(context=Depends(current_profile)):
     all_valid = []
     if enrollment_ids:
         all_valid = client.table("payments").select(
-            "id,enrollment_id,cashier_id,fee_tariff_id,amount_paid,currency,payment_reference,payment_date,status"
+            "id,enrollment_id,cashier_id,fee_tariff_id,amount_paid,currency,amount_usd,exchange_rate,payment_reference,payment_date,status"
         ).eq("status", "VALIDE").in_("enrollment_id", enrollment_ids).execute().data or []
     visible_payments = [p for p in all_valid if role != "CAISSIER" or p["cashier_id"] == profile["id"]]
 
     paid_by_key = {}
     for payment in all_valid:
         key = (payment["enrollment_id"], payment["fee_tariff_id"])
-        paid_by_key[key] = paid_by_key.get(key, Decimal("0")) + Decimal(str(payment["amount_paid"]))
+        paid_by_key[key] = paid_by_key.get(key, Decimal("0")) + payment_amount_usd(payment)
 
     tariff_by_id = {t["id"]: t for t in tariffs}
     balances_by_currency = {}
@@ -533,17 +566,15 @@ def dashboard(context=Depends(current_profile)):
         for tariff in tariffs:
             if tariff["class_id"] != enrollment["class_id"]:
                 continue
-            due = Decimal(str(tariff["amount"]))
+            due = amount_to_usd(tariff["amount"], tariff["currency"])
             paid = paid_by_key.get((enrollment["id"], tariff["id"]), Decimal("0"))
             remaining = max(due - paid, Decimal("0"))
-            currency = tariff["currency"].strip()
             if remaining:
-                balances_by_currency[currency] = balances_by_currency.get(currency, Decimal("0")) + remaining
+                balances_by_currency["USD"] = balances_by_currency.get("USD", Decimal("0")) + remaining
 
     revenue = {}
     for payment in visible_payments:
-        currency = payment["currency"].strip()
-        revenue[currency] = revenue.get(currency, Decimal("0")) + Decimal(str(payment["amount_paid"]))
+        revenue["USD"] = revenue.get("USD", Decimal("0")) + payment_amount_usd(payment)
 
     return {
         "active_year": year,
@@ -649,7 +680,7 @@ def list_students(q: str = "", context=Depends(require_roles("ADMINISTRATEUR", "
     paid_by_key = {}
     for payment in payments or []:
         key = (payment["enrollment_id"], payment["fee_tariff_id"])
-        paid_by_key[key] = paid_by_key.get(key, Decimal("0")) + Decimal(str(payment["amount_paid"]))
+        paid_by_key[key] = paid_by_key.get(key, Decimal("0")) + payment_amount_usd(payment)
 
     enrolled_by_student = {e["student_id"]: e for e in enrollments}
     needle = q.strip().casefold()
@@ -729,12 +760,12 @@ def search_students_for_cashier(q: str = "", context=Depends(require_roles("ADMI
     fee_types = {x["id"]: x for x in _rows("fee_types", "id,name")}
     enrollment_ids = [e["id"] for e in enrollments]
     payments = client.table("payments").select(
-        "enrollment_id,fee_tariff_id,amount_paid"
+        "enrollment_id,fee_tariff_id,amount_paid,currency,amount_usd"
     ).eq("status", "VALIDE").in_("enrollment_id", enrollment_ids).execute().data or [] if enrollment_ids else []
     paid = {}
     for p in payments:
         key = (p["enrollment_id"], p["fee_tariff_id"])
-        paid[key] = paid.get(key, Decimal("0")) + Decimal(str(p["amount_paid"]))
+        paid[key] = paid.get(key, Decimal("0")) + payment_amount_usd(p)
 
     result = []
     for student in matches:
@@ -747,14 +778,15 @@ def search_students_for_cashier(q: str = "", context=Depends(require_roles("ADMI
             for tariff in tariffs:
                 if tariff["class_id"] != enrollment["class_id"] or tariff["category_id"] != enrollment["category_id"]:
                     continue
-                due = Decimal(str(tariff["amount"]))
+                due = amount_to_usd(tariff["amount"], tariff["currency"])
                 already = paid.get((enrollment["id"], tariff["id"]), Decimal("0"))
                 balances.append({
                     "fee_tariff_id": tariff["id"],
                     "fee_type_name": fee_types.get(tariff["fee_type_id"], {}).get("name", "Frais"),
                     "amount_due": str(due), "amount_paid": str(already),
                     "remaining_balance": str(max(due - already, Decimal("0"))),
-                    "currency": tariff["currency"].strip(),
+                    "currency": "USD",
+                    "tariff_currency": tariff["currency"].strip(),
                 })
         result.append({
             **student,
@@ -887,6 +919,7 @@ class PaymentInput(BaseModel):
     option_id: Optional[int] = None
     fee_tariff_id: UUID
     amount_paid: Decimal = Field(gt=0, max_digits=14, decimal_places=2)
+    currency: str = Field(default="USD", pattern="^(USD|CDF)$")
     notes: Optional[str] = Field(default=None, max_length=500)
 
 
@@ -983,13 +1016,15 @@ def register_payment(payload: PaymentInput, context=Depends(require_roles("CAISS
         ).eq("school_year_id", year["id"]).eq("is_active", True).maybe_single().execute().data
         if not tariff or tariff["category_id"] != enrollment["category_id"] or tariff["class_id"] != enrollment["class_id"]:
             raise HTTPException(status_code=422, detail="Tarif non applicable à la classe de cet élève.")
-        paid_rows = client.table("payments").select("amount_paid").eq(
+        paid_rows = client.table("payments").select("amount_paid,currency,amount_usd").eq(
             "enrollment_id", enrollment["id"]
         ).eq("fee_tariff_id", str(payload.fee_tariff_id)).eq("status", "VALIDE").execute().data or []
-        already_paid = sum((Decimal(str(x["amount_paid"])) for x in paid_rows), Decimal("0"))
-        due = Decimal(str(tariff["amount"]))
-        if already_paid + payload.amount_paid > due:
-            raise HTTPException(status_code=422, detail=f"Le versement dépasse le solde restant ({due - already_paid} {tariff['currency'].strip()}).")
+        already_paid = sum((payment_amount_usd(x) for x in paid_rows), Decimal("0"))
+        due = amount_to_usd(tariff["amount"], tariff["currency"])
+        payment_usd = amount_to_usd(payload.amount_paid, payload.currency)
+        remaining_before = max(due - already_paid, Decimal("0"))
+        if already_paid + payment_usd > due:
+            raise HTTPException(status_code=422, detail=f"Le versement dépasse le solde restant ({remaining_before:.2f} USD).")
 
         reference = "GB-P-" + secrets.token_hex(6).upper()
         ticket_number = "GB-T-" + secrets.token_hex(6).upper()
@@ -998,20 +1033,25 @@ def register_payment(payload: PaymentInput, context=Depends(require_roles("CAISS
             "p_fee_tariff_id": str(payload.fee_tariff_id),
             "p_cashier_id": profile_id,
             "p_amount_paid": str(payload.amount_paid),
-            "p_currency": tariff["currency"].strip(),
+            "p_currency": payload.currency,
             "p_notes": payload.notes,
             "p_payment_reference": reference,
             "p_ticket_number": ticket_number,
         }).execute()
         row = result.data[0] if isinstance(result.data, list) and result.data else result.data
+        exchange_rate = EXCHANGE_RATE_CDF_PER_USD if payload.currency == "CDF" else Decimal("1")
+        remaining_after = max(due - already_paid - payment_usd, Decimal("0"))
         _audit_business(context, "REGISTER_PAYMENT", "payments", row["payment_id"],
-                        new_data={"reference": reference, "amount": str(payload.amount_paid), "currency": tariff["currency"].strip(),
+                        new_data={"reference": reference, "amount": str(payload.amount_paid),
+                                  "currency": payload.currency, "amount_usd": str(payment_usd),
+                                  "exchange_rate": str(exchange_rate),
                                   "student_id": student["id"], "enrollment_id": enrollment["id"]})
         return {
             "payment_id": row["payment_id"], "ticket_number": ticket_number,
             "payment_reference": reference, "amount_paid": str(payload.amount_paid),
-            "currency": tariff["currency"].strip(),
-            "remaining_balance": str(due - already_paid - payload.amount_paid),
+            "currency": payload.currency, "amount_usd": str(payment_usd),
+            "exchange_rate": str(exchange_rate),
+            "remaining_balance": str(remaining_after), "remaining_balance_currency": "USD",
             "student": student, "enrollment": enrollment,
         }
     except HTTPException:
@@ -1056,15 +1096,26 @@ def correct_own_payment(payment_id: UUID, payload: CorrectPaymentInput, context=
     tariff = client.table("fee_tariffs").select("amount,currency").eq(
         "id", payment["fee_tariff_id"]
     ).single().execute().data
-    other_rows = client.table("payments").select("amount_paid").eq(
+    other_rows = client.table("payments").select("amount_paid,currency,amount_usd").eq(
         "enrollment_id", payment["enrollment_id"]
     ).eq("fee_tariff_id", payment["fee_tariff_id"]).eq("status", "VALIDE").neq("id", str(payment_id)).execute().data or []
-    already_paid = sum((Decimal(str(row["amount_paid"])) for row in other_rows), Decimal("0"))
-    if already_paid + payload.amount_paid > Decimal(str(tariff["amount"])):
-        raise HTTPException(status_code=422, detail=f"La rectification dépasse le tarif autorisé. Solde maximal : {Decimal(str(tariff['amount'])) - already_paid} {tariff['currency'].strip()}.")
+    already_paid = sum((payment_amount_usd(row) for row in other_rows), Decimal("0"))
+    due_usd = amount_to_usd(tariff["amount"], tariff["currency"])
+    original_currency = str(payment["currency"]).strip().upper()
+    if original_currency == "USD":
+        exchange_rate = Decimal("1")
+    elif payment.get("exchange_rate") is not None:
+        exchange_rate = Decimal(str(payment["exchange_rate"]))
+    else:
+        raise HTTPException(status_code=409, detail="Ce paiement ancien en CDF n'a pas de taux historique. Il ne peut pas être rectifié automatiquement.")
+    amount_usd = (payload.amount_paid / exchange_rate).quantize(MONEY_QUANTUM, rounding=ROUND_HALF_UP)
+    if amount_usd <= 0 or already_paid + amount_usd > due_usd:
+        raise HTTPException(status_code=422, detail=f"La rectification dépasse le tarif autorisé. Solde maximal : {max(due_usd - already_paid, Decimal('0')):.2f} USD.")
     before = payment
     updated = client.table("payments").update({
         "amount_paid": str(payload.amount_paid),
+        "amount_usd": str(amount_usd),
+        "exchange_rate": str(exchange_rate),
         "notes": payload.notes,
         "updated_at": datetime.now(timezone.utc).isoformat(),
     }).eq("id", str(payment_id)).eq("cashier_id", profile_id).eq("status", "VALIDE").execute().data
@@ -1142,12 +1193,14 @@ def report_summary(context=Depends(require_roles("ADMINISTRATEUR", "PREFET", "PR
     years = client.table("school_years").select("*").order("start_date", desc=True).execute().data or []
     payments = client.table("payments").select("*").order("payment_date", desc=True).limit(2000).execute().data or []
     valid = [p for p in payments if p["status"] == "VALIDE"]
-    totals = {}
-    for p in valid:
-        cur = p["currency"].strip()
-        totals[cur] = totals.get(cur, Decimal("0")) + Decimal(str(p["amount_paid"]))
+    total_usd = sum((payment_amount_usd(p) for p in valid), Decimal("0"))
+    unconverted_legacy = sum(
+        1 for p in valid
+        if p.get("amount_usd") is None and str(p.get("currency", "")).strip().upper() != "USD"
+    )
     return {"school_years":years,"valid_payments":len(valid),
-            "revenue":[{"currency":k,"amount":str(v)} for k,v in totals.items()],
+            "revenue":[{"currency":"USD","amount":str(total_usd)}],
+            "unconverted_legacy_payments":unconverted_legacy,
             "annulled_payments":len(payments)-len(valid)}
 
 
