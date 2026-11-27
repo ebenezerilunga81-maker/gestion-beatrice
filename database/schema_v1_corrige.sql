@@ -470,6 +470,87 @@ revoke all on function public.annul_payment(uuid,text) from public, anon;
 grant execute on function public.annul_payment(uuid,text) to authenticated;
 
 -- ---------------------------------------------------------------------------
+-- 8 bis. Rectification d'un paiement par son caissier d'origine.
+-- Le tarif, l'inscription, le caissier et la référence restent immuables.
+-- ---------------------------------------------------------------------------
+
+create function public.correct_own_payment(
+  p_payment_id uuid,
+  p_new_amount numeric,
+  p_new_payment_date timestamptz default null,
+  p_new_notes text default null
+)
+returns void language plpgsql security definer
+set search_path = ''
+as $
+declare
+  v_profile uuid;
+  v_role text;
+  v_payment public.payments%rowtype;
+  v_tariff public.fee_tariffs%rowtype;
+  v_paid_other numeric(14,2);
+begin
+  v_profile := public.current_profile_id();
+  v_role := public.current_app_role();
+  if v_profile is null or v_role <> 'CAISSIER' then
+    raise exception 'Seul un caissier actif peut rectifier un paiement.';
+  end if;
+  if p_new_amount is null or p_new_amount <= 0 then
+    raise exception 'Le montant doit être supérieur à zéro.';
+  end if;
+
+  -- Même ordre de verrouillage que register_payment : inscription puis verrou métier.
+  select p.* into v_payment from public.payments p where p.id=p_payment_id;
+  if not found or v_payment.cashier_id <> v_profile or v_payment.status <> 'VALIDE' then
+    raise exception 'Paiement introuvable, non modifiable ou appartenant à un autre caissier.';
+  end if;
+
+  perform 1 from public.student_enrollments e
+  where e.id=v_payment.enrollment_id for update;
+  perform pg_advisory_xact_lock(hashtextextended(
+    v_payment.enrollment_id::text || ':' || v_payment.fee_tariff_id::text, 0
+  ));
+
+  select * into v_payment from public.payments p
+  where p.id=p_payment_id for update;
+  if v_payment.status <> 'VALIDE' or v_payment.cashier_id <> v_profile then
+    raise exception 'Ce paiement n’est plus modifiable.';
+  end if;
+
+  select * into v_tariff from public.fee_tariffs
+  where id=v_payment.fee_tariff_id;
+  select coalesce(sum(p.amount_paid),0) into v_paid_other
+  from public.payments p
+  where p.enrollment_id=v_payment.enrollment_id
+    and p.fee_tariff_id=v_payment.fee_tariff_id
+    and p.status='VALIDE'
+    and p.id <> p_payment_id;
+
+  if v_paid_other + p_new_amount > v_tariff.amount then
+    raise exception 'La rectification dépasse le solde restant (% %).',
+      (v_tariff.amount-v_paid_other),v_tariff.currency;
+  end if;
+
+  update public.payments
+  set amount_paid=p_new_amount,
+      payment_date=coalesce(p_new_payment_date,payment_date),
+      notes=p_new_notes,
+      updated_at=now()
+  where id=p_payment_id;
+
+  insert into public.audit_logs(actor_profile_id,action,table_name,record_id,old_data,new_data)
+  values(v_profile,'PAIEMENT_RECTIFIE','payments',p_payment_id::text,
+    jsonb_build_object('amount_paid',v_payment.amount_paid,
+                       'payment_date',v_payment.payment_date,'notes',v_payment.notes),
+    jsonb_build_object('amount_paid',p_new_amount,
+                       'payment_date',coalesce(p_new_payment_date,v_payment.payment_date),
+                       'notes',p_new_notes));
+end;
+$;
+revoke all on function public.correct_own_payment(uuid,numeric,timestamptz,text) from public, anon;
+grant execute on function public.correct_own_payment(uuid,numeric,timestamptz,text) to authenticated;
+
+-- ---------------------------------------------------------------------------
 -- 9. Décisions de fin d'année : ADMINISTRATEUR uniquement, à partir du 2 juillet.
 -- PROMU crée l'inscription suivante ; REDOUBLE conserve la classe ;
 -- SORTANT et FIN_CYCLE ne créent pas d'inscription suivante.
