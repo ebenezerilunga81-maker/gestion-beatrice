@@ -909,6 +909,80 @@ def list_payments(context=Depends(require_roles("ADMINISTRATEUR", "PREFET", "PRO
         })
     return {"payments": result}
 
+@app.get("/api/students/{student_id}/payments")
+def student_payment_history(student_id: UUID, context=Depends(require_roles("CAISSIER"))):
+    """Historique complet des paiements de l'élève, toutes années scolaires confondues."""
+    client = admin_client()
+    student = client.table("students").select(
+        "id,student_number,full_name"
+    ).eq("id", str(student_id)).maybe_single().execute().data
+    if not student:
+        raise HTTPException(status_code=404, detail="Élève introuvable.")
+    enrollments = client.table("student_enrollments").select(
+        "id,school_year_id,class_id,category_id,option_id"
+    ).eq("student_id", str(student_id)).execute().data or []
+    enrollment_ids = [row["id"] for row in enrollments]
+    if not enrollment_ids:
+        return {"student": student, "payments": [], "fee_balances": []}
+    payments = client.table("payments").select("*").in_(
+        "enrollment_id", enrollment_ids
+    ).order("payment_date", desc=True).execute().data or []
+    year_ids = list({row["school_year_id"] for row in enrollments})
+    years = client.table("school_years").select("id,label").in_("id", year_ids).execute().data or []
+    year_map = {row["id"]: row["label"] for row in years}
+    tariff_ids = list({row["fee_tariff_id"] for row in payments})
+    tariffs = client.table("fee_tariffs").select(
+        "id,fee_type_id,amount,currency"
+    ).in_("id", tariff_ids).execute().data if tariff_ids else []
+    tariff_map = {row["id"]: row for row in (tariffs or [])}
+    fee_types = {row["id"]: row for row in _rows("fee_types", "id,name")}
+    tickets = client.table("tickets").select(
+        "payment_id,ticket_number"
+    ).in_("payment_id", [row["id"] for row in payments]).execute().data if payments else []
+    ticket_map = {row["payment_id"]: row["ticket_number"] for row in (tickets or [])}
+    cashier_ids = list({row["cashier_id"] for row in payments if row.get("cashier_id")})
+    cashiers = client.table("profiles").select(
+        "id,full_name"
+    ).in_("id", cashier_ids).execute().data if cashier_ids else []
+    cashier_map = {row["id"]: row["full_name"] for row in (cashiers or [])}
+    enrollment_map = {row["id"]: row for row in enrollments}
+    results = []
+    for payment in payments:
+        enrollment = enrollment_map.get(payment["enrollment_id"], {})
+        tariff = tariff_map.get(payment["fee_tariff_id"], {})
+        fee_type = fee_types.get(tariff.get("fee_type_id"), {})
+        results.append({
+            **payment,
+            "school_year_label": year_map.get(enrollment.get("school_year_id"), "—"),
+            "ticket_number": ticket_map.get(payment["id"]),
+            "fee_type_name": fee_type.get("name", "Frais"),
+            "cashier_name": cashier_map.get(payment.get("cashier_id"), "Caissier"),
+        })
+    active_year = next((row for row in enrollments if year_map.get(row["school_year_id"]) and any(
+        year.get("id") == row["school_year_id"] and year.get("is_active") for year in years
+    )), None)
+    fee_balances = []
+    if active_year:
+        active_tariffs = client.table("fee_tariffs").select(
+            "id,fee_type_id,amount,currency"
+        ).eq("school_year_id", active_year["school_year_id"]).eq(
+            "category_id", active_year["category_id"]
+        ).eq("class_id", active_year["class_id"]).eq("is_active", True).execute().data or []
+        active_payments = [row for row in payments if row["enrollment_id"] == active_year["id"] and row["status"] == "VALIDE"]
+        paid_by_tariff = {}
+        for row in active_payments:
+            paid_by_tariff[row["fee_tariff_id"]] = paid_by_tariff.get(row["fee_tariff_id"], Decimal("0")) + payment_amount_usd(row)
+        for tariff in active_tariffs:
+            due = amount_to_usd(tariff["amount"], tariff["currency"])
+            paid = paid_by_tariff.get(tariff["id"], Decimal("0"))
+            fee_balances.append({
+                "fee_type_name": fee_types.get(tariff["fee_type_id"], {}).get("name", "Frais"),
+                "amount_due": str(due), "amount_paid": str(paid),
+                "remaining_balance": str(max(due - paid, Decimal("0"))),
+            })
+    return {"student": student, "payments": results, "fee_balances": fee_balances}
+
+
 class PaymentInput(BaseModel):
     model_config = ConfigDict(extra="forbid")
     enrollment_id: Optional[UUID] = None
