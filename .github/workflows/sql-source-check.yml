@@ -1,0 +1,27 @@
+name: SQL source guardrails
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - "database/schema_v1_corrige.sql"
+      - "tests/validate_schema_source.py"
+      - ".github/workflows/sql-source-check.yml"
+  pull_request:
+    paths:
+      - "database/schema_v1_corrige.sql"
+      - "tests/validate_schema_source.py"
+      - ".github/workflows/sql-source-check.yml"
+
+jobs:
+  validate-sql-source:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+      - name: Run static schema checks
+        run: python tests/validate_schema_source.py database/schema_v1_corrige.sql
