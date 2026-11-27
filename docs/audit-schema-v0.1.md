@@ -68,3 +68,31 @@ Le fichier `database/schema_initial.sql` est un bon inventaire de départ, mais 
 
 ## Règle de protection
 Aucune commande de création ou de modification de tables n'a été exécutée sur Supabase pendant cet audit. La base officielle reste intacte jusqu'à validation du schéma corrigé.
+
+
+## Revue approfondie du brouillon v1 — 27 novembre 2026
+
+Statut : corrections ciblées enregistrées dans `database/schema_v1_corrige.sql`. Le fichier reste un brouillon non exécuté.
+
+### Défauts détectés et corrigés
+1. **Erreur de syntaxe SQL dans `correct_own_payment`** : le corps PL/pgSQL utilisait `as $` et `$;` au lieu du délimiteur dollar `$$`. Corrigé.
+2. **Date de validation des décisions** : le contrôle utilisait le 2 juillet de l'année civile courante, sans tenir compte de l'année scolaire de l'inscription. Il utilise maintenant le 2 juillet de l'année de fin portée par `school_years.end_date`.
+3. **Décision nulle** : le contrôle rejette explicitement une valeur `NULL` pour `p_decision`.
+
+### Points qui restent bloquants avant migration
+1. Le script n'a pas encore été analysé par un véritable moteur PostgreSQL : la vérification des délimiteurs ne remplace pas une compilation/exécution transactionnelle.
+2. Les règles RLS et privilèges doivent être testés avec trois comptes Auth fictifs. En particulier, les politiques INSERT/UPDATE de `students` existent mais les privilèges directs correspondants sont volontairement révoqués ; les écritures devront donc passer par le backend Render, qui reste à construire.
+3. La fonction d'activation d'année scolaire manque. Il faut encadrer la désactivation de l'année précédente, l'activation de la suivante et l'unicité d'année active dans une transaction contrôlée par l'administrateur.
+4. Les modifications des profils, tarifs, jours fériés et années scolaires doivent produire des entrées d'audit complètes (avant/après, auteur, date et motif si requis).
+5. Les règles de transition de classe et les options doivent être testées sur toutes les classes, y compris les fins de cycle maternelle, primaire et humanités.
+6. Le backend Render devra être le seul composant à utiliser la clé `service_role`. Aucun secret privilégié ne sera placé dans le navigateur.
+7. Il faut valider les droits EXECUTE des fonctions RPC et les privilèges des séquences dans une base isolée, puis lancer les Security Advisors.
+
+### Vérification effectuée
+- Contrôle textuel des fonctions, politiques RLS et délimiteurs dollar.
+- Une anomalie de délimiteur a été identifiée puis corrigée.
+- Aucune migration n'a été appliquée sur le projet Supabase officiel.
+- Le projet CNAC-Mobile reste hors périmètre et n'a pas été modifié.
+
+### Décision
+Ne pas exécuter le SQL sur la base officielle à ce stade. La prochaine étape est de préparer un environnement de test PostgreSQL isolé et des tests automatisés des règles métier et des permissions.
