@@ -1188,6 +1188,99 @@ def validate_decision(enrollment_id: UUID, payload: DecisionInput, context=Depen
     return {"enrollment": updated}
 
 
+
+@app.get("/api/archive")
+def archive_records(
+    school_year_id: Optional[UUID] = None,
+    category_id: Optional[int] = None,
+    class_id: Optional[int] = None,
+    option_id: Optional[int] = None,
+    student_id: Optional[UUID] = None,
+    context=Depends(require_roles("ADMINISTRATEUR", "PREFET", "PROMOTEUR", "CAISSIER")),
+):
+    """Consultation historique par année, section, classe, option et élève; aucune écriture."""
+    client = admin_client()
+    years = client.table("school_years").select("id,label,start_date,end_date,is_active").order("start_date", desc=True).execute().data or []
+    categories = _rows("categories", "id,code,name")
+    classes = _rows("classes", "id,category_id,code,name,level_order")
+    options = _rows("options", "id,code,name,is_active")
+    fee_types = _rows("fee_types", "id,code,name,is_active")
+    if not school_year_id:
+        return {"school_years": years, "categories": categories, "classes": classes,
+                "options": options, "fee_types": fee_types, "students": [], "payments": []}
+
+    enrollment_query = client.table("student_enrollments").select("*").eq("school_year_id", str(school_year_id))
+    if category_id is not None:
+        enrollment_query = enrollment_query.eq("category_id", category_id)
+    if class_id is not None:
+        enrollment_query = enrollment_query.eq("class_id", class_id)
+    if option_id is not None:
+        enrollment_query = enrollment_query.eq("option_id", option_id)
+    if student_id:
+        enrollment_query = enrollment_query.eq("student_id", str(student_id))
+    enrollments = enrollment_query.execute().data or []
+    enrollment_ids = [e["id"] for e in enrollments]
+    if not enrollment_ids:
+        return {"school_years": years, "categories": categories, "classes": classes,
+                "options": options, "fee_types": fee_types, "students": [], "payments": []}
+
+    students_rows = client.table("students").select("id,student_number,full_name").in_(
+        "id", list({e["student_id"] for e in enrollments})
+    ).order("full_name").execute().data or []
+    student_map = {s["id"]: s for s in students_rows}
+    class_map = {x["id"]: x for x in classes}
+    category_map = {x["id"]: x for x in categories}
+    option_map = {x["id"]: x for x in options}
+    fee_type_map = {x["id"]: x for x in fee_types}
+    tariffs = client.table("fee_tariffs").select("id,fee_type_id,class_id,amount,currency").eq(
+        "school_year_id", str(school_year_id)
+    ).execute().data or []
+    tariff_map = {t["id"]: t for t in tariffs}
+    payments = client.table("payments").select("*").in_(
+        "enrollment_id", enrollment_ids
+    ).order("payment_date", desc=True).execute().data or []
+    tickets = client.table("tickets").select("payment_id,ticket_number").in_(
+        "payment_id", [p["id"] for p in payments]
+    ).execute().data if payments else []
+    ticket_map = {t["payment_id"]: t["ticket_number"] for t in (tickets or [])}
+    cashier_ids = list({p["cashier_id"] for p in payments if p.get("cashier_id")})
+    cashiers = client.table("profiles").select("id,full_name").in_("id", cashier_ids).execute().data if cashier_ids else []
+    cashier_map = {x["id"]: x["full_name"] for x in (cashiers or [])}
+    enrollment_map = {e["id"]: e for e in enrollments}
+
+    student_results = []
+    for enrollment in enrollments:
+        student = student_map.get(enrollment["student_id"], {})
+        cls = class_map.get(enrollment["class_id"], {})
+        cat = category_map.get(enrollment["category_id"], {})
+        opt = option_map.get(enrollment.get("option_id"), {})
+        student_results.append({
+            **student, "enrollment_id": enrollment["id"],
+            "category_id": enrollment["category_id"], "category_name": cat.get("name"),
+            "category_code": cat.get("code"), "class_id": enrollment["class_id"],
+            "class_name": cls.get("name"), "option_id": enrollment.get("option_id"),
+            "option_name": opt.get("name"),
+        })
+
+    payment_results = []
+    for payment in payments:
+        enrollment = enrollment_map.get(payment["enrollment_id"], {})
+        tariff = tariff_map.get(payment["fee_tariff_id"], {})
+        fee_type = fee_type_map.get(tariff.get("fee_type_id"), {})
+        student = student_map.get(enrollment.get("student_id"), {})
+        cls = class_map.get(enrollment.get("class_id"), {})
+        opt = option_map.get(enrollment.get("option_id"), {})
+        payment_results.append({
+            **payment, "ticket_number": ticket_map.get(payment["id"]),
+            "student": student, "class_name": cls.get("name"),
+            "option_name": opt.get("name"), "fee_type_name": fee_type.get("name", "Frais"),
+            "fee_type_code": fee_type.get("code"), "cashier_name": cashier_map.get(payment.get("cashier_id"), "Caissier"),
+        })
+    return {"school_years": years, "categories": categories, "classes": classes,
+            "options": options, "fee_types": fee_types, "students": student_results,
+            "payments": payment_results}
+
+
 @app.get("/api/reports/summary")
 def report_summary(context=Depends(require_roles("ADMINISTRATEUR", "PREFET", "PROMOTEUR"))):
     client = admin_client()
