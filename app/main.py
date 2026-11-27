@@ -689,6 +689,82 @@ def list_students(q: str = "", context=Depends(require_roles("ADMINISTRATEUR", "
         })
     return {"students": result, "active_year": year}
 
+@app.get("/api/students/search")
+def search_students_for_cashier(q: str = "", context=Depends(require_roles("ADMINISTRATEUR", "PREFET", "PROMOTEUR", "CAISSIER"))):
+    """Recherche les fiches élèves existantes, même si elles n'ont pas encore d'inscription pour l'année active."""
+    needle = q.strip()
+    if len(needle) < 2:
+        return {"students": []}
+    client = admin_client()
+    matches = client.table("students").select(
+        "id,student_number,full_name,date_of_birth"
+    ).ilike("full_name", f"%{needle}%").order("full_name").limit(20).execute().data or []
+    if not matches:
+        return {"students": []}
+
+    year_rows = client.table("school_years").select("id,label").eq("is_active", True).limit(1).execute()
+    year = year_rows.data[0] if year_rows and year_rows.data else None
+    student_ids = [s["id"] for s in matches]
+    enrollments = []
+    if year:
+        enrollments = client.table("student_enrollments").select("*").eq(
+            "school_year_id", year["id"]
+        ).in_("student_id", student_ids).execute().data or []
+    enrollment_map = {e["student_id"]: e for e in enrollments}
+    class_ids = list({e["class_id"] for e in enrollments})
+    category_ids = list({e["category_id"] for e in enrollments})
+    option_ids = list({e["option_id"] for e in enrollments if e.get("option_id")})
+    classes = {x["id"]: x for x in (client.table("classes").select("id,name,category_id").in_("id", class_ids).execute().data or [])} if class_ids else {}
+    categories = {x["id"]: x for x in (client.table("categories").select("id,name,code").in_("id", category_ids).execute().data or [])} if category_ids else {}
+    options = {x["id"]: x for x in (client.table("options").select("id,name").in_("id", option_ids).execute().data or [])} if option_ids else {}
+    tariffs = client.table("fee_tariffs").select(
+        "id,fee_type_id,category_id,class_id,amount,currency,is_active"
+    ).eq("school_year_id", year["id"]).eq("is_active", True).execute().data or [] if year else []
+    fee_types = {x["id"]: x for x in _rows("fee_types", "id,name")}
+    enrollment_ids = [e["id"] for e in enrollments]
+    payments = client.table("payments").select(
+        "enrollment_id,fee_tariff_id,amount_paid"
+    ).eq("status", "VALIDE").in_("enrollment_id", enrollment_ids).execute().data or [] if enrollment_ids else []
+    paid = {}
+    for p in payments:
+        key = (p["enrollment_id"], p["fee_tariff_id"])
+        paid[key] = paid.get(key, Decimal("0")) + Decimal(str(p["amount_paid"]))
+
+    result = []
+    for student in matches:
+        enrollment = enrollment_map.get(student["id"])
+        class_row = classes.get(enrollment.get("class_id"), {}) if enrollment else {}
+        category = categories.get(enrollment.get("category_id"), {}) if enrollment else {}
+        option = options.get(enrollment.get("option_id"), {}) if enrollment else {}
+        balances = []
+        if enrollment:
+            for tariff in tariffs:
+                if tariff["class_id"] != enrollment["class_id"] or tariff["category_id"] != enrollment["category_id"]:
+                    continue
+                due = Decimal(str(tariff["amount"]))
+                already = paid.get((enrollment["id"], tariff["id"]), Decimal("0"))
+                balances.append({
+                    "fee_tariff_id": tariff["id"],
+                    "fee_type_name": fee_types.get(tariff["fee_type_id"], {}).get("name", "Frais"),
+                    "amount_due": str(due), "amount_paid": str(already),
+                    "remaining_balance": str(max(due - already, Decimal("0"))),
+                    "currency": tariff["currency"].strip(),
+                })
+        result.append({
+            **student,
+            "enrollment_id": enrollment.get("id") if enrollment else None,
+            "category_id": enrollment.get("category_id") if enrollment else None,
+            "category_name": category.get("name"),
+            "category_code": category.get("code"),
+            "class_id": enrollment.get("class_id") if enrollment else None,
+            "class_name": class_row.get("name"),
+            "option_id": enrollment.get("option_id") if enrollment else None,
+            "option_name": option.get("name"),
+            "fee_balances": balances,
+        })
+    return {"students": result, "active_year": year}
+
+
 class EnrollmentInput(BaseModel):
     student_id: Optional[UUID] = None
     full_name: str = Field(min_length=2, max_length=180)
@@ -699,7 +775,7 @@ class EnrollmentInput(BaseModel):
 
 
 @app.post("/api/enrollments", status_code=201)
-def create_enrollment(payload: EnrollmentInput, context=Depends(require_roles("PROMOTEUR", "PREFET", "CAISSIER"))):
+def create_enrollment(payload: EnrollmentInput, context=Depends(require_roles("ADMINISTRATEUR"))):
     client = admin_client()
     year = client.table("school_years").select("id").eq("is_active", True).maybe_single().execute().data
     if not year:
@@ -789,7 +865,14 @@ def list_payments(context=Depends(require_roles("ADMINISTRATEUR", "PREFET", "PRO
     return {"payments": result}
 
 class PaymentInput(BaseModel):
-    enrollment_id: UUID
+    model_config = ConfigDict(extra="forbid")
+    enrollment_id: Optional[UUID] = None
+    student_id: Optional[UUID] = None
+    full_name: Optional[str] = Field(default=None, min_length=2, max_length=180)
+    date_of_birth: Optional[Date] = None
+    category_id: Optional[int] = None
+    class_id: Optional[int] = None
+    option_id: Optional[int] = None
     fee_tariff_id: UUID
     amount_paid: Decimal = Field(gt=0, max_digits=14, decimal_places=2)
     notes: Optional[str] = Field(default=None, max_length=500)
@@ -799,25 +882,107 @@ class PaymentInput(BaseModel):
 def register_payment(payload: PaymentInput, context=Depends(require_roles("CAISSIER"))):
     client = admin_client()
     profile_id = context["profile"]["id"]
-    year = client.table("school_years").select("id").eq("is_active", True).maybe_single().execute().data
+    year_rows = client.table("school_years").select("id,label").eq("is_active", True).limit(1).execute()
+    year = year_rows.data[0] if year_rows and year_rows.data else None
     if not year:
-        raise HTTPException(status_code=409, detail="Aucune année scolaire active.")
-    enrollment = client.table("student_enrollments").select("*").eq("id", str(payload.enrollment_id)).eq("school_year_id", year["id"]).maybe_single().execute().data
-    if not enrollment:
-        raise HTTPException(status_code=404, detail="Inscription active introuvable. Les archives ne peuvent pas être encaissées.")
-    tariff = client.table("fee_tariffs").select("*").eq("id", str(payload.fee_tariff_id)).eq("school_year_id", year["id"]).eq("is_active", True).maybe_single().execute().data
-    if not tariff or tariff["category_id"] != enrollment["category_id"] or tariff["class_id"] != enrollment["class_id"]:
-        raise HTTPException(status_code=422, detail="Tarif non applicable à la classe de cet élève.")
-    paid_rows = client.table("payments").select("amount_paid").eq("enrollment_id", str(payload.enrollment_id)).eq("fee_tariff_id", str(payload.fee_tariff_id)).eq("status", "VALIDE").execute().data or []
-    already_paid = sum((Decimal(str(x["amount_paid"])) for x in paid_rows), Decimal("0"))
-    due = Decimal(str(tariff["amount"]))
-    if already_paid + payload.amount_paid > due:
-        raise HTTPException(status_code=422, detail=f"Le versement dépasse le solde restant ({due - already_paid} {tariff['currency'].strip()}).")
-    reference = "GB-P-" + secrets.token_hex(6).upper()
-    ticket_number = "GB-T-" + secrets.token_hex(6).upper()
+        raise HTTPException(status_code=409, detail="Aucune année scolaire active. L'encaissement est suspendu.")
+
+    created_student_id = None
+    created_enrollment_id = None
     try:
+        enrollment = None
+        student = None
+        if payload.enrollment_id:
+            enrollment = client.table("student_enrollments").select("*").eq(
+                "id", str(payload.enrollment_id)
+            ).eq("school_year_id", year["id"]).maybe_single().execute().data
+            if not enrollment:
+                raise HTTPException(status_code=404, detail="Inscription active introuvable.")
+            student = client.table("students").select(
+                "id,student_number,full_name,date_of_birth"
+            ).eq("id", enrollment["student_id"]).single().execute().data
+        else:
+            if payload.student_id:
+                student = client.table("students").select(
+                    "id,student_number,full_name,date_of_birth"
+                ).eq("id", str(payload.student_id)).maybe_single().execute().data
+                if not student:
+                    raise HTTPException(status_code=404, detail="Fiche élève introuvable.")
+            else:
+                full_name = (payload.full_name or "").strip()
+                if len(full_name) < 2:
+                    raise HTTPException(status_code=422, detail="Le nom complet de l'élève est obligatoire.")
+                duplicates = client.table("students").select(
+                    "id,student_number,full_name"
+                ).ilike("full_name", full_name).limit(5).execute().data or []
+                if duplicates:
+                    raise HTTPException(status_code=409, detail="Une fiche porte déjà ce nom. Recherchez-la et sélectionnez-la pour éviter un doublon.")
+
+            if payload.category_id is None or payload.class_id is None:
+                raise HTTPException(status_code=422, detail="Choisissez la catégorie et la classe de l'élève.")
+            cls = client.table("classes").select("id,category_id").eq(
+                "id", payload.class_id
+            ).maybe_single().execute().data
+            if not cls or cls["category_id"] != payload.category_id:
+                raise HTTPException(status_code=422, detail="La classe ne correspond pas à la catégorie sélectionnée.")
+            cat = client.table("categories").select("code").eq(
+                "id", payload.category_id
+            ).single().execute().data
+            if cat["code"] == "HUMANITE" and not payload.option_id:
+                raise HTTPException(status_code=422, detail="L'option est obligatoire pour les humanités.")
+            if cat["code"] != "HUMANITE" and payload.option_id:
+                raise HTTPException(status_code=422, detail="L'option est réservée aux humanités.")
+            if payload.option_id:
+                valid_option = client.table("options").select("id").eq(
+                    "id", payload.option_id
+                ).eq("is_active", True).maybe_single().execute().data
+                if not valid_option:
+                    raise HTTPException(status_code=422, detail="Option invalide.")
+
+            existing_enrollment = None
+            if student:
+                existing_enrollment = client.table("student_enrollments").select("*").eq(
+                    "student_id", student["id"]
+                ).eq("school_year_id", year["id"]).maybe_single().execute().data
+            if existing_enrollment:
+                enrollment = existing_enrollment
+            else:
+                # Vérifier le tarif avant de créer la fiche ou l'inscription.
+                tariff_check = client.table("fee_tariffs").select("*").eq(
+                    "id", str(payload.fee_tariff_id)
+                ).eq("school_year_id", year["id"]).eq("is_active", True).maybe_single().execute().data
+                if not tariff_check or tariff_check["category_id"] != payload.category_id or tariff_check["class_id"] != payload.class_id:
+                    raise HTTPException(status_code=422, detail="Le tarif sélectionné ne correspond pas à la classe.")
+                if not student:
+                    student = client.table("students").insert({
+                        "full_name": full_name,
+                        "date_of_birth": payload.date_of_birth.isoformat() if payload.date_of_birth else None,
+                    }).execute().data[0]
+                    created_student_id = student["id"]
+                enrollment = client.table("student_enrollments").insert({
+                    "student_id": student["id"], "school_year_id": year["id"],
+                    "category_id": payload.category_id, "class_id": payload.class_id,
+                    "option_id": payload.option_id,
+                }).execute().data[0]
+                created_enrollment_id = enrollment["id"]
+
+        tariff = client.table("fee_tariffs").select("*").eq(
+            "id", str(payload.fee_tariff_id)
+        ).eq("school_year_id", year["id"]).eq("is_active", True).maybe_single().execute().data
+        if not tariff or tariff["category_id"] != enrollment["category_id"] or tariff["class_id"] != enrollment["class_id"]:
+            raise HTTPException(status_code=422, detail="Tarif non applicable à la classe de cet élève.")
+        paid_rows = client.table("payments").select("amount_paid").eq(
+            "enrollment_id", enrollment["id"]
+        ).eq("fee_tariff_id", str(payload.fee_tariff_id)).eq("status", "VALIDE").execute().data or []
+        already_paid = sum((Decimal(str(x["amount_paid"])) for x in paid_rows), Decimal("0"))
+        due = Decimal(str(tariff["amount"]))
+        if already_paid + payload.amount_paid > due:
+            raise HTTPException(status_code=422, detail=f"Le versement dépasse le solde restant ({due - already_paid} {tariff['currency'].strip()}).")
+
+        reference = "GB-P-" + secrets.token_hex(6).upper()
+        ticket_number = "GB-T-" + secrets.token_hex(6).upper()
         result = client.rpc("register_school_payment", {
-            "p_enrollment_id": str(payload.enrollment_id),
+            "p_enrollment_id": enrollment["id"],
             "p_fee_tariff_id": str(payload.fee_tariff_id),
             "p_cashier_id": profile_id,
             "p_amount_paid": str(payload.amount_paid),
@@ -828,12 +993,39 @@ def register_payment(payload: PaymentInput, context=Depends(require_roles("CAISS
         }).execute()
         row = result.data[0] if isinstance(result.data, list) and result.data else result.data
         _audit_business(context, "REGISTER_PAYMENT", "payments", row["payment_id"],
-                        new_data={"reference": reference, "amount": str(payload.amount_paid), "currency": tariff["currency"].strip()})
-        return {"payment_id": row["payment_id"], "ticket_number": ticket_number, "payment_reference": reference,
-                "amount_paid": str(payload.amount_paid), "currency": tariff["currency"].strip(),
-                "remaining_balance": str(due - already_paid - payload.amount_paid)}
+                        new_data={"reference": reference, "amount": str(payload.amount_paid), "currency": tariff["currency"].strip(),
+                                  "student_id": student["id"], "enrollment_id": enrollment["id"]})
+        return {
+            "payment_id": row["payment_id"], "ticket_number": ticket_number,
+            "payment_reference": reference, "amount_paid": str(payload.amount_paid),
+            "currency": tariff["currency"].strip(),
+            "remaining_balance": str(due - already_paid - payload.amount_paid),
+            "student": student, "enrollment": enrollment,
+        }
+    except HTTPException:
+        # Ne nettoyer que les enregistrements créés par cette requête et seulement si aucun paiement n'a été créé.
+        if created_enrollment_id:
+            existing_payment = client.table("payments").select("id").eq(
+                "enrollment_id", created_enrollment_id
+            ).limit(1).execute().data or []
+            if not existing_payment:
+                client.table("student_enrollments").delete().eq("id", created_enrollment_id).execute()
+                if created_student_id:
+                    client.table("students").delete().eq("id", created_student_id).execute()
+        raise
     except Exception:
         logger.exception("Enregistrement paiement/ticket impossible")
+        if created_enrollment_id:
+            try:
+                existing_payment = client.table("payments").select("id").eq(
+                    "enrollment_id", created_enrollment_id
+                ).limit(1).execute().data or []
+                if not existing_payment:
+                    client.table("student_enrollments").delete().eq("id", created_enrollment_id).execute()
+                    if created_student_id:
+                        client.table("students").delete().eq("id", created_student_id).execute()
+            except Exception:
+                logger.exception("Nettoyage des fiches temporaires impossible après échec d'encaissement")
         raise HTTPException(status_code=400, detail="Le paiement n'a pas pu être validé. Vérifiez le solde et réessayez.")
 
 
