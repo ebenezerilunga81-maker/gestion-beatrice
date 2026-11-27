@@ -192,6 +192,23 @@ def bootstrap_first_admin():
         return {"status": "created", "message": "Compte créé. Utilisez la fonction de réinitialisation du mot de passe ou vérifiez la configuration e-mail Supabase."}
 
 
+@app.post("/api/bootstrap/admin/send-recovery")
+def send_initial_admin_recovery():
+    """Send a fresh recovery link only for the preconfigured first administrator."""
+    if not BOOTSTRAP_ADMIN_ENABLED or not BOOTSTRAP_ADMIN_EMAIL:
+        raise HTTPException(status_code=404, detail="Fonction indisponible.")
+    try:
+        client = public_client()
+        client.auth.reset_password_for_email(
+            BOOTSTRAP_ADMIN_EMAIL,
+            {"redirect_to": FRONTEND_ORIGIN},
+        )
+        return {"status": "requested", "message": "Si le compte existe, un e-mail de réinitialisation a été demandé."}
+    except Exception:
+        logger.warning("Demande de récupération initiale impossible")
+        raise HTTPException(status_code=400, detail="Impossible de demander l'e-mail. Réessayez plus tard.")
+
+
 @app.post("/api/auth/set-password")
 def set_password(payload: SetPasswordInput):
     """Complete a password-recovery session using the user's one-time tokens."""
