@@ -496,10 +496,16 @@ def dashboard(context=Depends(current_profile)):
     client = admin_client()
     profile = context["profile"]
     role = profile["role"]
-    year = client.table("school_years").select("id,label").eq("is_active", True).maybe_single().execute().data
+    # Aucune année active est un état métier normal (avant la rentrée), pas une erreur API.
+    # Ne pas utiliser maybe_single() ici : selon la version du client PostgREST,
+    # une réponse vide peut produire None au lieu d’un objet réponse.
+    year_rows = client.table("school_years").select("id,label").eq("is_active", True).limit(1).execute()
+    year_data = year_rows.data if year_rows is not None else None
+    year = year_data[0] if year_data else None
     if not year:
         return {"active_year": None, "students": 0, "payments": 0, "revenue": [],
-                "balances": [], "recent_payments": []}
+                "balances": [], "recent_payments": [], "balances": [],
+                "message": "Aucune année scolaire active. Le tableau de bord sera complet après l’ouverture de l’année scolaire."}
 
     enrollments = client.table("student_enrollments").select(
         "id,student_id,class_id,category_id,option_id"
