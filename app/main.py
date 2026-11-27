@@ -361,7 +361,7 @@ def create_user(payload: CreateUserInput, context=Depends(require_admin)):
                 client.auth.admin.delete_user(auth_id)
             except Exception:
                 logger.exception("Nettoyage Auth impossible après erreur")
-        raise HTTPException(status_code=400, detail="Création impossible. Vérifiez l'adresse e-mail et réessayez.")
+        raise HTTPException(status_code=400, detail="Création impossible. Vérifiez l'identifiant et le mot de passe puis réessayez.")
 
 
 @app.patch("/api/admin/users/{profile_id}")
