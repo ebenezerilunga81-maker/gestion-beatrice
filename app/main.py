@@ -696,9 +696,15 @@ def search_students_for_cashier(q: str = "", context=Depends(require_roles("ADMI
     if len(needle) < 2:
         return {"students": []}
     client = admin_client()
-    matches = client.table("students").select(
+    by_name = client.table("students").select(
         "id,student_number,full_name,date_of_birth"
     ).ilike("full_name", f"%{needle}%").order("full_name").limit(20).execute().data or []
+    by_number = client.table("students").select(
+        "id,student_number,full_name,date_of_birth"
+    ).ilike("student_number", f"%{needle}%").limit(20).execute().data or []
+    matches_by_id = {row["id"]: row for row in by_name}
+    matches_by_id.update({row["id"]: row for row in by_number})
+    matches = sorted(matches_by_id.values(), key=lambda row: row["full_name"].casefold())[:20]
     if not matches:
         return {"students": []}
 
