@@ -799,6 +799,12 @@ def create_enrollment(payload: EnrollmentInput, context=Depends(require_roles("A
         if not valid_option:
             raise HTTPException(status_code=422, detail="Option invalide.")
     student_id = str(payload.student_id) if payload.student_id else None
+    if not student_id:
+        duplicate = client.table("students").select("id").ilike(
+            "full_name", payload.full_name.strip()
+        ).limit(1).execute().data or []
+        if duplicate:
+            raise HTTPException(status_code=409, detail="Cette fiche élève existe déjà. Recherchez son nom et sélectionnez la fiche correspondante.")
     try:
         if student_id:
             student = client.table("students").select("id,full_name").eq("id", student_id).single().execute().data
