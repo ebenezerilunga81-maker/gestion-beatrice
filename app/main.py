@@ -50,7 +50,7 @@ class SetPasswordInput(BaseModel):
 
 
 class LoginInput(BaseModel):
-    email: EmailStr
+    identifier: str = Field(min_length=1, max_length=254)
     password: str = Field(min_length=1, max_length=256)
 
 
@@ -229,7 +229,19 @@ def set_password(payload: SetPasswordInput):
 def login(payload: LoginInput):
     try:
         client = public_client()
-        session = client.auth.sign_in_with_password({"email": str(payload.email), "password": payload.password})
+        identifier = payload.identifier.strip()
+        login_email = identifier.lower()
+        if "@" not in identifier:
+            profile = admin_client().table("profiles").select(
+                "auth_user_id,is_active"
+            ).ilike("username", identifier).maybe_single().execute().data
+            if not profile or not profile.get("is_active"):
+                raise HTTPException(status_code=401, detail="Identifiant ou mot de passe incorrect.")
+            auth_user = admin_client().auth.admin.get_user_by_id(profile["auth_user_id"]).user
+            if not auth_user or not auth_user.email:
+                raise HTTPException(status_code=401, detail="Identifiant ou mot de passe incorrect.")
+            login_email = auth_user.email
+        session = client.auth.sign_in_with_password({"email": login_email, "password": payload.password})
         if not session.user or not session.session:
             raise HTTPException(status_code=401, detail="Identifiants incorrects.")
         profile = admin_client().table("profiles").select(
