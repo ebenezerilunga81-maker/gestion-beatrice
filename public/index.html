@@ -89,75 +89,150 @@ document.querySelectorAll("[data-go]").forEach(b=>b.addEventListener("click",()=
 function classOptions(catId){return (refs?.classes||[]).filter(c=>String(c.category_id)===String(catId)).map(c=>'<option value="'+c.id+'">'+esc(c.name)+'</option>').join("")}
 function categoryOptions(){return (refs?.categories||[]).map(c=>'<option value="'+c.id+'">'+esc(c.name)+'</option>').join("")}
 function optionOptions(){return (refs?.options||[]).filter(o=>o.is_active).map(o=>'<option value="'+o.id+'">'+esc(o.name)+'</option>').join("")}
-async function renderStudents(){const data=await api("/api/students");const rows=data.students||[];$("pageContent").innerHTML=heading("Élèves & inscriptions","Recherche des élèves inscrits pour l’année scolaire active")+
-'<section class="panel"><div class="panelhead"><h2>Nouvelle inscription</h2><span>'+esc(refs.active_year?.label||"Aucune année active")+'</span></div><form id="enrollForm" class="formgrid"><label class="field"><span>Nom complet de l’élève *</span><input name="full_name" required minlength="2"></label><label class="field"><span>Date de naissance (facultatif)</span><input name="date_of_birth" type="date"></label><label class="field"><span>Catégorie *</span><select name="category_id" id="enrollCategory" required><option value="">Choisir…</option>'+categoryOptions()+'</select></label><label class="field"><span>Classe *</span><select name="class_id" id="enrollClass" required><option value="">Choisir la catégorie d’abord</option></select></label><label class="field hidden" id="optionField"><span>Option des humanités *</span><select name="option_id"><option value="">Choisir…</option>'+optionOptions()+'</select></label><div class="field full"><button class="btn" type="submit" '+(!refs.active_year?'disabled':'')+'>Enregistrer l’inscription</button></div></form></section>'+
-'<section class="panel"><div class="panelhead"><h2>Liste des élèves</h2><span>'+rows.length+' résultat(s)</span></div><div class="toolbar"><input class="search" id="studentSearch" placeholder="Rechercher par nom ou numéro…"><button class="btn secondary" id="searchStudents">Rechercher</button></div><div class="tablewrap"><table class="table"><thead><tr><th>N° élève</th><th>Nom complet</th><th>Section</th><th>Classe</th><th>Option</th><th>Décision</th></tr></thead><tbody id="studentRows">'+studentRows(rows)+'</tbody></table></div></section>';
-$("enrollCategory").addEventListener("change",e=>{$("enrollClass").innerHTML='<option value="">Choisir…</option>'+classOptions(e.target.value);$("optionField").classList.toggle("hidden",refs.categories.find(c=>String(c.id)===e.target.value)?.code!=="HUMANITE");});
-$("enrollForm").addEventListener("submit",async e=>{e.preventDefault();const f=new FormData(e.target);const body=Object.fromEntries(f.entries());body.category_id=Number(body.category_id);body.class_id=Number(body.class_id);body.option_id=body.option_id?Number(body.option_id):null;try{await api("/api/enrollments",{method:"POST",body:JSON.stringify(body)});message("Inscription enregistrée avec succès.");await renderStudents();}catch(x){message(x.message,"error");}});
-$("searchStudents").addEventListener("click",async()=>{const d=await api("/api/students?q="+encodeURIComponent($("studentSearch").value));$("studentRows").innerHTML=studentRows(d.students||[]);});
+async function renderStudents(){
+ const data=await api("/api/students"),rows=data.students||[],canManage=user.role==="ADMINISTRATEUR";
+ $("pageContent").innerHTML=heading("Élèves & inscriptions",canManage?"Gestion des fiches et inscriptions de l’année scolaire active":"Consultation des élèves de l’année scolaire active")+
+ (canManage?'<section class="panel"><div class="panelhead"><h2>Ajouter un élève / inscrire</h2><span>'+esc(refs.active_year?.label||"Aucune année active")+'</span></div><form id="enrollForm" class="formgrid"><label class="field"><span>Nom complet de l’élève *</span><input name="full_name" required minlength="2"></label><label class="field"><span>Date de naissance (facultatif)</span><input name="date_of_birth" type="date"></label><label class="field"><span>Catégorie *</span><select name="category_id" id="enrollCategory" required><option value="">Choisir…</option>'+categoryOptions()+'</select></label><label class="field"><span>Classe *</span><select name="class_id" id="enrollClass" required><option value="">Choisir la catégorie d’abord</option></select></label><label class="field hidden" id="optionField"><span>Option des humanités *</span><select name="option_id"><option value="">Choisir…</option>'+optionOptions()+'</select></label><div class="field full"><button class="btn" type="submit" '+(!refs.active_year?'disabled':'')+'>Enregistrer la fiche et l’inscription</button></div></form></section>':'<div class="notice">Les fiches et inscriptions sont consultables ici. Leur création manuelle est réservée à l’administrateur.</div>')+
+ '<section class="panel"><div class="panelhead"><h2>Liste des élèves</h2><span>'+rows.length+' résultat(s)</span></div><div class="toolbar"><input class="search" id="studentSearch" placeholder="Rechercher par nom ou numéro…"><button class="btn secondary" id="searchStudents">Rechercher</button></div><div class="tablewrap"><table class="table"><thead><tr><th>N° élève</th><th>Nom complet</th><th>Section</th><th>Classe</th><th>Option</th><th>Décision</th></tr></thead><tbody id="studentRows">'+studentRows(rows)+'</tbody></table></div></section>';
+ if(canManage){
+  $("enrollCategory").addEventListener("change",e=>{$("enrollClass").innerHTML='<option value="">Choisir…</option>'+classOptions(e.target.value);$("optionField").classList.toggle("hidden",refs.categories.find(x=>String(x.id)===e.target.value)?.code!=="HUMANITE");});
+  $("enrollForm").addEventListener("submit",async e=>{e.preventDefault();const f=new FormData(e.target),body=Object.fromEntries(f.entries());body.category_id=Number(body.category_id);body.class_id=Number(body.class_id);body.option_id=body.option_id?Number(body.option_id):null;try{await api("/api/enrollments",{method:"POST",body:JSON.stringify(body)});message("Fiche et inscription enregistrées.");await renderStudents();}catch(x){message(x.message,"error");}});
+ }
+ $("searchStudents").addEventListener("click",async()=>{const d=await api("/api/students?q="+encodeURIComponent($("studentSearch").value));$("studentRows").innerHTML=studentRows(d.students||[]);});
+ $("studentSearch").addEventListener("keydown",e=>{if(e.key==="Enter")$("searchStudents").click();});
 }
 function studentRows(rows){return rows.length?rows.map(s=>'<tr><td>'+esc(s.student_number)+'</td><td><b>'+esc(s.full_name)+'</b></td><td>'+esc(s.category_name)+'</td><td>'+esc(s.class_name)+'</td><td>'+esc(s.option_name||"—")+'</td><td><span class="tag">'+esc(s.decision||"EN_ATTENTE")+'</span></td></tr>').join(""):'<tr><td colspan="6" class="empty">Aucun élève trouvé pour cette année scolaire.</td></tr>'}
 async function renderPayments(){
-const [d,sd]=await Promise.all([api("/api/payments"),api("/api/students")]);
-const students=sd.students||[];
-const isCashier=user.role==="CAISSIER";
-const feeLabel=f=>esc(f.fee_type_name)+" — dû "+money(f.amount_due,f.currency)+", payé "+money(f.amount_paid,f.currency)+", reste "+money(f.remaining_balance,f.currency);
-const studentOptions=students.map(s=>'<option value="'+s.enrollment_id+'">'+esc(s.student_number+" — "+s.full_name+" — "+s.class_name)+'</option>').join("");
-$("pageContent").innerHTML=heading("Paiements & caisse",isCashier?"Votre guichet : encaissements, tickets et historique de vos opérations.":"Consultation des paiements enregistrés.")+
-(isCashier?'<section class="panel"><div class="panelhead"><h2>Instructions avant encaissement</h2><span>Année active : '+esc(sd.active_year?.label||"non définie")+'</span></div><p class="muted">Recherchez l’élève, contrôlez sa classe, choisissez le frais et indiquez uniquement la somme effectivement reçue. Un versement partiel est accepté et le solde est recalculé automatiquement.</p></section>':'')+
-(isCashier?'<section class="panel"><div class="panelhead"><h2>Enregistrer un paiement</h2><span>Réservé au caissier</span></div><form id="paymentForm" class="formgrid"><label class="field full"><span>Rechercher l’élève (nom ou numéro)</span><input id="studentSearch" type="search" placeholder="Commencez à taper le nom ou le numéro…"></label><label class="field full"><span>Élève inscrit *</span><select name="enrollment_id" id="paymentStudent" required><option value="">Choisir un élève…</option>'+studentOptions+'</select></label><label class="field full"><span>Type de frais *</span><select name="fee_tariff_id" id="paymentFee" required disabled><option value="">Choisir d’abord un élève…</option></select></label><div class="field full"><div id="paymentBalanceHint" class="notice">Le tarif, le montant déjà payé et le solde restant s’afficheront après le choix de l’élève.</div></div><label class="field"><span>Montant réellement reçu *</span><input name="amount_paid" id="paymentAmount" type="number" min="0.01" step="0.01" required></label><label class="field"><span>Observation (facultatif)</span><input name="notes" maxlength="500" placeholder="Précision éventuelle"></label><div class="field full"><button class="btn" type="submit" '+(!refs.active_year?'disabled':'')+'>Valider le paiement</button></div></form></section>':'')+
-(lastTicket?'<section class="panel ticket-ready"><div class="panelhead"><h2>Ticket prêt à imprimer</h2><span>'+esc(lastTicket.ticket_number)+'</span></div><p>Le paiement vient d’être enregistré. Imprimez le ticket et remettez-le au parent.</p><button class="btn" id="printTicket">Imprimer le ticket</button></section>':'')+
-'<section class="panel"><div class="panelhead"><h2>Historique des paiements '+(isCashier?"— mes opérations":"")+'</h2><span>'+d.payments.length+' opération(s)</span></div><div class="tablewrap"><table class="table"><thead><tr><th>Date</th><th>N° ticket</th><th>Référence</th><th>Élève</th><th>Frais</th><th>Montant</th><th>Statut</th>'+(isCashier?'<th>Action</th>':'')+'</tr></thead><tbody>'+paymentRows(d.payments,isCashier)+'</tbody></table></div></section>'+
-(isCashier?'<div id="correctionModal" class="hidden" style="position:fixed;inset:0;background:#0b173b88;z-index:1000;display:flex;align-items:center;justify-content:center;padding:20px"><section class="panel" style="width:min(480px,100%);box-shadow:0 20px 60px #0003"><div class="panelhead"><h2>Rectifier un paiement</h2><button type="button" class="btn secondary" id="closeCorrection">Fermer</button></div><form id="correctionForm" class="formgrid"><input type="hidden" name="payment_id"><label class="field full"><span>Nouveau montant reçu *</span><input name="amount_paid" type="number" min="0.01" step="0.01" required></label><label class="field full"><span>Observation / motif de rectification *</span><input name="notes" maxlength="500" required></label><div class="field full"><button class="btn">Enregistrer la rectification</button></div></form></section></div>':'');
-if(isCashier){
- const studentSelect=$("paymentStudent"), feeSelect=$("paymentFee"), amountInput=$("paymentAmount");
- const search=$("studentSearch");
- search.addEventListener("input",()=>{const q=search.value.trim().toLocaleLowerCase("fr");[...studentSelect.options].forEach((o,i)=>{if(i===0)return;const show=o.text.toLocaleLowerCase("fr").includes(q);o.hidden=!show;});});
- studentSelect.addEventListener("change",()=>{
-   const student=students.find(x=>String(x.enrollment_id)===studentSelect.value);
-   const balances=(student?.fee_balances||[]).filter(x=>Number(x.remaining_balance)>0);
-   feeSelect.innerHTML='<option value="">Choisir un frais…</option>'+balances.map(x=>'<option value="'+x.fee_tariff_id+'">'+feeLabel(x)+'</option>').join("");
-   feeSelect.disabled=!balances.length;
-   $("paymentBalanceHint").textContent=balances.length?"Sélectionnez le type de frais pour voir le solde exact.":"Aucun solde restant pour cet élève dans l’année active.";
+ const [d,sd]=await Promise.all([api("/api/payments"),api("/api/students")]);
+ const isCashier=user.role==="CAISSIER";
+ let selectedStudent=null,currentFees=[];
+ const feeTypeName=id=>(refs.fee_types||[]).find(x=>String(x.id)===String(id))?.name||"Frais";
+ const feeLabel=f=>esc(f.fee_type_name)+" — dû "+money(f.amount_due,f.currency)+", payé "+money(f.amount_paid,f.currency)+", reste "+money(f.remaining_balance,f.currency);
+ const buildNewFees=()=>{
+  const cat=$("paymentCategory")?.value,cls=$("paymentClass")?.value;
+  if(!cat||!cls)return [];
+  return (refs.tariffs||[]).filter(t=>String(t.category_id)===String(cat)&&String(t.class_id)===String(cls)&&t.is_active).map(t=>({fee_tariff_id:t.id,fee_type_name:feeTypeName(t.fee_type_id),amount_due:String(t.amount),amount_paid:"0",remaining_balance:String(t.amount),currency:t.currency}));
+ };
+ $("pageContent").innerHTML=heading("Paiements & caisse",isCashier?"Recherche d’un élève, encaissement et historique de vos opérations.":"Consultation et contrôle des paiements enregistrés.")+
+ (isCashier?'<section class="panel"><div class="panelhead"><h2>Nouvel encaissement</h2><span>Accès réservé au caissier</span></div><form id="paymentForm" class="formgrid"><label class="field full"><span>Rechercher l’élève par son nom ou numéro</span><input id="studentSearch" type="search" autocomplete="off" placeholder="Tapez au moins deux lettres du nom…"></label><div class="field full" id="studentSuggestions"></div><div class="field full"><div id="studentSelected" class="notice">Commencez par rechercher l’élève. S’il existe déjà, sélectionnez sa fiche.</div></div><div class="field full" id="paymentStudentDetails"><div class="formgrid"><label class="field full"><span>Nom complet de l’élève *</span><input id="paymentFullName" minlength="2" maxlength="180" required></label><label class="field"><span>Catégorie *</span><select id="paymentCategory" required><option value="">Choisir…</option>'+categoryOptions()+'</select></label><label class="field"><span>Classe *</span><select id="paymentClass" required><option value="">Choisir la catégorie d’abord</option></select></label><label class="field hidden" id="paymentOptionField"><span>Option des humanités *</span><select id="paymentOption"><option value="">Choisir…</option>'+optionOptions()+'</select></label><label class="field"><span>Date de naissance (facultatif)</span><input id="paymentDob" type="date"></label></div></div><label class="field full"><span>Type de frais à payer *</span><select id="paymentFee" required disabled><option value="">Sélectionnez d’abord l’élève et sa classe…</option></select></label><div class="field full"><div id="paymentBalanceHint" class="notice">Le tarif et le solde s’afficheront après la sélection du frais.</div></div><label class="field"><span>Montant réellement versé *</span><input name="amount_paid" id="paymentAmount" type="number" min="0.01" step="0.01" required></label><label class="field"><span>Observation (facultatif)</span><input name="notes" maxlength="500" placeholder="Précision éventuelle"></label><div class="field full"><button class="btn" type="submit" '+(!refs.active_year?'disabled':'')+'>Valider le paiement et préparer le ticket</button></div></form></section>':'')+
+ (isCashier&&lastTicket?'<section class="panel ticket-ready"><div class="panelhead"><h2>Ticket prêt à imprimer</h2><span>'+esc(lastTicket.ticket_number)+'</span></div><p>Le paiement vient d’être enregistré.</p><button class="btn" id="printTicket">Imprimer le ticket</button></section>':'')+
+ '<section class="panel"><div class="panelhead"><h2>Historique des paiements '+(isCashier?"— mes opérations":"")+'</h2><span>'+d.payments.length+' opération(s)</span></div><div class="tablewrap"><table class="table"><thead><tr><th>Date</th><th>N° ticket</th><th>Référence</th><th>Élève</th><th>Frais</th><th>Montant</th><th>Statut</th>'+(isCashier?'<th>Action</th>':'')+'</tr></thead><tbody>'+paymentRows(d.payments,isCashier)+'</tbody></table></div></section>'+
+ (isCashier?'<div id="correctionModal" class="hidden" style="position:fixed;inset:0;background:#0b173b88;z-index:1000;display:flex;align-items:center;justify-content:center;padding:20px"><section class="panel" style="width:min(480px,100%);box-shadow:0 20px 60px #0003"><div class="panelhead"><h2>Rectifier un paiement</h2><button type="button" class="btn secondary" id="closeCorrection">Fermer</button></div><form id="correctionForm" class="formgrid"><input type="hidden" name="payment_id"><label class="field full"><span>Nouveau montant reçu *</span><input name="amount_paid" type="number" min="0.01" step="0.01" required></label><label class="field full"><span>Observation / motif de rectification *</span><input name="notes" maxlength="500" required></label><div class="field full"><button class="btn">Enregistrer la rectification</button></div></form></section></div>':'');
+ if(isCashier){
+  const search=$("studentSearch"),suggestions=$("studentSuggestions"),details=$("paymentStudentDetails");
+  const feeSelect=$("paymentFee"),amountInput=$("paymentAmount");
+  const setStudentDetails=(student)=>{
+   selectedStudent=student||null;
+   if(student){
+    $("studentSelected").textContent="Élève sélectionné : "+student.full_name+" ("+student.student_number+"). "+(student.enrollment_id?"Inscription de l’année active trouvée.":"Aucune inscription active : complétez sa catégorie et sa classe.");
+    $("paymentFullName").value=student.full_name;
+    $("paymentDob").value=student.date_of_birth||"";
+    if(student.enrollment_id){
+     details.classList.add("hidden");
+     currentFees=student.fee_balances||[];
+    }else{
+     details.classList.remove("hidden");
+     $("paymentCategory").value=student.category_id||"";
+     $("paymentClass").innerHTML='<option value="">Choisir…</option>'+classOptions(student.category_id||"");
+     $("paymentClass").value=student.class_id||"";
+     $("paymentOption").value=student.option_id||"";
+     $("paymentOptionField").classList.toggle("hidden",student.category_code!=="HUMANITE");
+     currentFees=buildNewFees();
+    }
+   }else{
+    $("studentSelected").textContent="Nouvelle fiche élève : vérifiez le nom, puis choisissez la catégorie et la classe.";
+    details.classList.remove("hidden");
+    $("paymentFullName").value=search.value.trim();
+    $("paymentDob").value="";
+    $("paymentCategory").value="";
+    $("paymentClass").innerHTML='<option value="">Choisir la catégorie d’abord</option>';
+    $("paymentOption").value="";
+    $("paymentOptionField").classList.add("hidden");
+    currentFees=buildNewFees();
+   }
+   refreshFeeChoices();
+  };
+  const refreshFeeChoices=()=>{
+   if(!selectedStudent||!selectedStudent.enrollment_id)currentFees=buildNewFees();
+   const available=currentFees.filter(f=>Number(f.remaining_balance)>0);
+   feeSelect.innerHTML='<option value="">Choisir un frais…</option>'+available.map(f=>'<option value="'+f.fee_tariff_id+'">'+feeLabel(f)+'</option>').join("");
+   feeSelect.disabled=!available.length;
+   $("paymentBalanceHint").textContent=available.length?"Choisissez le frais concerné pour afficher le solde exact.":"Aucun solde restant pour cette fiche et cette année scolaire.";
    amountInput.value="";amountInput.removeAttribute("max");
- });
- feeSelect.addEventListener("change",()=>{
-   const student=students.find(x=>String(x.enrollment_id)===studentSelect.value);
-   const fee=student?.fee_balances?.find(x=>String(x.fee_tariff_id)===feeSelect.value);
-   if(!fee)return;
+  };
+  let searchTimer=null;
+  search.addEventListener("input",()=>{
+   clearTimeout(searchTimer);selectedStudent=null;currentFees=[];details.classList.add("hidden");$("studentSelected").textContent="Recherche en cours…";suggestions.innerHTML="";
+   const term=search.value.trim();
+   if(term.length<2){$("studentSelected").textContent="Tapez au moins deux lettres pour rechercher un élève.";return;}
+   searchTimer=setTimeout(async()=>{
+    try{
+     const result=await api("/api/students/search?q="+encodeURIComponent(term)),found=result.students||[];
+     if(found.length){
+      suggestions.innerHTML=found.map((s,i)=>'<button type="button" class="btn secondary" data-student-index="'+i+'" style="margin:4px">'+esc(s.full_name)+' — '+esc(s.student_number)+' — '+esc(s.class_name||"Classe à préciser")+'</button>').join("");
+      suggestions.querySelectorAll("[data-student-index]").forEach(btn=>btn.addEventListener("click",()=>{const s=found[Number(btn.dataset.studentIndex)];suggestions.innerHTML="";setStudentDetails(s);}));
+      $("studentSelected").textContent="Sélectionnez le bon élève dans les propositions.";
+     }else{
+      suggestions.innerHTML='<div class="notice">Aucun élève trouvé sous ce nom. Vous pouvez créer sa fiche au guichet.</div>';
+      setStudentDetails(null);
+     }
+    }catch(x){$("studentSelected").textContent=x.message;}
+   },250);
+  });
+  $("paymentCategory").addEventListener("change",e=>{
+   const cat=refs.categories.find(x=>String(x.id)===e.target.value);
+   $("paymentClass").innerHTML='<option value="">Choisir…</option>'+classOptions(e.target.value);
+   $("paymentOptionField").classList.toggle("hidden",cat?.code!=="HUMANITE");
+   $("paymentOption").required=cat?.code==="HUMANITE";
+   if(selectedStudent&&!selectedStudent.enrollment_id){selectedStudent.category_id=Number(e.target.value);selectedStudent.category_code=cat?.code;}
+   refreshFeeChoices();
+  });
+  $("paymentClass").addEventListener("change",e=>{if(selectedStudent&&!selectedStudent.enrollment_id)selectedStudent.class_id=Number(e.target.value);refreshFeeChoices();});
+  $("paymentOption").addEventListener("change",e=>{if(selectedStudent&&!selectedStudent.enrollment_id)selectedStudent.option_id=e.target.value?Number(e.target.value):null;});
+  feeSelect.addEventListener("change",()=>{
+   const fee=currentFees.find(x=>String(x.fee_tariff_id)===feeSelect.value);if(!fee)return;
    $("paymentBalanceHint").textContent="Montant dû : "+money(fee.amount_due,fee.currency)+" · Déjà payé : "+money(fee.amount_paid,fee.currency)+" · Solde restant : "+money(fee.remaining_balance,fee.currency);
    amountInput.max=fee.remaining_balance;
- });
- $("paymentForm").addEventListener("submit",async e=>{
+  });
+  $("paymentForm").addEventListener("submit",async e=>{
    e.preventDefault();
-   const student=students.find(x=>String(x.enrollment_id)===studentSelect.value);
-   const fee=student?.fee_balances?.find(x=>String(x.fee_tariff_id)===feeSelect.value);
-   if(!student||!fee){message("Sélectionnez un élève et un frais valides.","error");return;}
-   const body=Object.fromEntries(new FormData(e.target).entries());body.amount_paid=Number(body.amount_paid);
-   if(body.amount_paid>Number(fee.remaining_balance)){message("Le montant dépasse le solde restant de cet élève.","error");return;}
+   if(!selectedStudent&&!$("paymentFullName").value.trim()){message("Saisissez le nom complet de l’élève.","error");return;}
+   const fee=currentFees.find(x=>String(x.fee_tariff_id)===feeSelect.value);
+   if(!fee){message("Sélectionnez un frais valide.","error");return;}
+   const amount=Number(amountInput.value);
+   if(!(amount>0)||amount>Number(fee.remaining_balance)){message("Le montant doit être positif et ne peut pas dépasser le solde restant.","error");return;}
+   const body={fee_tariff_id:fee.fee_tariff_id,amount_paid:amount,notes:e.target.elements.notes.value||null};
+   if(selectedStudent?.enrollment_id){body.enrollment_id=selectedStudent.enrollment_id;}
+   else{
+    if(selectedStudent?.id)body.student_id=selectedStudent.id;
+    body.full_name=$("paymentFullName").value.trim();
+    body.date_of_birth=$("paymentDob").value||null;
+    body.category_id=Number($("paymentCategory").value);
+    body.class_id=Number($("paymentClass").value);
+    body.option_id=$("paymentOption").value?Number($("paymentOption").value):null;
+   }
    try{
-     const r=await api("/api/payments",{method:"POST",body:JSON.stringify(body)});
-     lastTicket={...r,student_name:student.full_name,student_number:student.student_number,class_name:student.class_name,option_name:student.option_name,fee_type_name:fee.fee_type_name,cashier_name:user.full_name,issued_at:new Date().toISOString()};
-     message("Paiement enregistré avec succès. Ticket "+r.ticket_number+" prêt à imprimer.");
-     await renderPayments();
+    const r=await api("/api/payments",{method:"POST",body:JSON.stringify(body)});
+    const catName=refs.categories.find(x=>String(x.id)===String(selectedStudent?.category_id||$("paymentCategory").value))?.name||selectedStudent?.category_name||"";
+    const clsName=selectedStudent?.class_name||refs.classes.find(x=>String(x.id)===String(selectedStudent?.class_id||$("paymentClass").value))?.name||"";
+    const optName=selectedStudent?.option_name||refs.options.find(x=>String(x.id)===String(selectedStudent?.option_id||$("paymentOption").value))?.name||"";
+    lastTicket={...r,student_name:r.student?.full_name||$("paymentFullName").value.trim(),student_number:r.student?.student_number||selectedStudent?.student_number||"—",class_name:clsName,category_name:catName,option_name:optName,fee_type_name:fee.fee_type_name,cashier_name:user.full_name,issued_at:new Date().toISOString()};
+    message("Paiement enregistré. Ticket "+r.ticket_number+" prêt à imprimer.");
+    await renderPayments();
    }catch(x){message(x.message,"error");}
- });
- document.querySelectorAll(".correctPayment").forEach(btn=>btn.addEventListener("click",()=>{
+  });
+  document.querySelectorAll(".correctPayment").forEach(btn=>btn.addEventListener("click",()=>{
    const modal=$("correctionModal"),form=$("correctionForm");form.elements.payment_id.value=btn.dataset.id;form.elements.amount_paid.value=btn.dataset.amount;form.elements.notes.value=btn.dataset.notes||"Rectification de caisse";modal.classList.remove("hidden");
- }));
- $("closeCorrection").addEventListener("click",()=>$("correctionModal").classList.add("hidden"));
- $("correctionForm").addEventListener("submit",async e=>{
-   e.preventDefault();const form=e.target;const id=form.elements.payment_id.value;
-   try{await api("/api/payments/"+id+"/correct",{method:"PATCH",body:JSON.stringify({amount_paid:Number(form.elements.amount_paid.value),notes:form.elements.notes.value})});$("correctionModal").classList.add("hidden");message("Paiement rectifié. La valeur précédente est conservée dans le journal de contrôle.");await renderPayments();}
+  }));
+  $("closeCorrection").addEventListener("click",()=>$("correctionModal").classList.add("hidden"));
+  $("correctionForm").addEventListener("submit",async e=>{
+   e.preventDefault();const form=e.target,id=form.elements.payment_id.value;
+   try{await api("/api/payments/"+id+"/correct",{method:"PATCH",body:JSON.stringify({amount_paid:Number(form.elements.amount_paid.value),notes:form.elements.notes.value})});$("correctionModal").classList.add("hidden");message("Paiement rectifié. L’ancienne valeur reste conservée dans le journal de contrôle.");await renderPayments();}
    catch(x){message(x.message,"error");}
- });
-}
-document.querySelectorAll(".printPaymentTicket").forEach(btn=>btn.addEventListener("click",()=>{
- const d=btn.dataset;
- lastTicket={ticket_number:d.ticket,payment_reference:d.reference,student_name:d.student,student_number:d.studentno,class_name:d.class,option_name:d.option,fee_type_name:d.fee,amount_paid:d.amount,currency:d.currency,issued_at:d.date,cashier_name:d.cashier,remaining_balance:"—"};
- printLastTicket();
-}));
-if(lastTicket&&$("printTicket"))$("printTicket").addEventListener("click",printLastTicket);
+  });
+ }
+ document.querySelectorAll(".printPaymentTicket").forEach(btn=>btn.addEventListener("click",()=>{const d=btn.dataset;lastTicket={ticket_number:d.ticket,payment_reference:d.reference,student_name:d.student,student_number:d.studentno,class_name:d.class,option_name:d.option,fee_type_name:d.fee,amount_paid:d.amount,currency:d.currency,issued_at:d.date,cashier_name:d.cashier,remaining_balance:"—"};printLastTicket();}));
+ if(lastTicket&&$("printTicket"))$("printTicket").addEventListener("click",printLastTicket);
 }
 function paymentRows(rows,showActions=true){
  return rows.length?rows.map(p=>'<tr><td>'+new Date(p.payment_date).toLocaleString("fr-FR")+'</td><td>'+esc(p.ticket_number||"—")+'</td><td>'+esc(p.payment_reference)+'</td><td>'+esc(p.student?.full_name||"—")+'</td><td>'+esc(p.fee_type_name||"—")+'</td><td><b>'+money(p.amount_paid,p.currency)+'</b></td><td><span class="tag '+(p.status==="VALIDE"?"green":"red")+'">'+esc(p.status)+'</span></td>'+(showActions?'<td>'+(p.status==="VALIDE"?'<button class="btn secondary printPaymentTicket" data-ticket="'+esc(p.ticket_number||"")+'" data-reference="'+esc(p.payment_reference||"")+'" data-student="'+esc(p.student?.full_name||"")+'" data-studentno="'+esc(p.student?.student_number||"")+'" data-class="'+esc(p.class_name||"")+'" data-option="'+esc(p.option_name||"")+'" data-fee="'+esc(p.fee_type_name||"")+'" data-amount="'+esc(p.amount_paid)+'" data-currency="'+esc(p.currency)+'" data-date="'+esc(p.payment_date)+'" data-cashier="'+esc(p.cashier_name||"Caissier")+'">Ticket</button> <button class="btn secondary correctPayment" data-id="'+p.id+'" data-amount="'+p.amount_paid+'" data-notes="'+esc(p.notes||"")+'">Rectifier</button>':'—')+'</td>':'')+'</tr>').join(""):'<tr><td colspan="'+(showActions?8:7)+'" class="empty">Aucun paiement enregistré pour le moment.</td></tr>';
