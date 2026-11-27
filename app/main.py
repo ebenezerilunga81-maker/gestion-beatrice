@@ -560,39 +560,47 @@ def list_school_years(context=Depends(require_roles("ADMINISTRATEUR", "PREFET", 
 
 
 class SchoolYearInput(BaseModel):
-    label: str = Field(min_length=7, max_length=20)
-    start_date: Date
-    end_date: Date
-    opening_date: Date
+    label: str = Field(min_length=9, max_length=9, pattern=r"^\\d{4}-\\d{4}$")
     activate: bool = False
+
+
+def school_year_dates(label: str):
+    """Calcule automatiquement la rentrée et la fermeture réglementaires."""
+    try:
+        opening_year, closing_year = (int(part) for part in label.split("-"))
+    except (TypeError, ValueError):
+        raise HTTPException(status_code=422, detail="Le libellé doit suivre le format AAAA-AAAA (ex. 2026-2027).")
+    if closing_year != opening_year + 1:
+        raise HTTPException(status_code=422, detail="L'année scolaire doit couvrir deux années consécutives.")
+    september_first = Date(opening_year, 9, 1)
+    opening_date = Date(opening_year, 9, 1 + ((7 - september_first.weekday()) % 7))
+    closing_date = Date(closing_year, 7, 2)
+    # Si le 2 juillet tombe un samedi ou un dimanche, reporter au lundi suivant.
+    if closing_date.weekday() == 5:
+        closing_date = Date(closing_year, 7, 5)
+    elif closing_date.weekday() == 6:
+        closing_date = Date(closing_year, 7, 4)
+    return opening_date, closing_date
 
 
 @app.post("/api/admin/school-years", status_code=201)
 def create_school_year(payload: SchoolYearInput, context=Depends(require_roles("ADMINISTRATEUR"))):
-    if payload.end_date <= payload.start_date:
-        raise HTTPException(status_code=422, detail="La date de fin doit être après la date de début.")
-    if payload.opening_date < payload.start_date or payload.opening_date > payload.end_date:
-        raise HTTPException(status_code=422, detail="La date d'ouverture doit se situer dans l'année scolaire.")
-    # La rentrée est fixée au premier lundi de septembre.
-    september_first = Date(payload.start_date.year, 9, 1)
-    first_monday = september_first.replace(day=1)
-    first_monday = Date(september_first.year, 9, 1 + ((7 - september_first.weekday()) % 7))
-    if payload.opening_date != first_monday:
-        raise HTTPException(status_code=422, detail=f"La rentrée doit être le premier lundi de septembre ({first_monday.isoformat()}).")
+    label = payload.label.strip()
+    opening_date, closing_date = school_year_dates(label)
     client = admin_client()
     try:
         if payload.activate:
             client.table("school_years").update({"is_active": False}).eq("is_active", True).execute()
         result = client.table("school_years").insert({
-            "label": payload.label.strip(),
-            "start_date": payload.start_date.isoformat(),
-            "end_date": payload.end_date.isoformat(),
-            "opening_date": payload.opening_date.isoformat(),
+            "label": label,
+            "start_date": opening_date.isoformat(),
+            "end_date": closing_date.isoformat(),
+            "opening_date": opening_date.isoformat(),
             "is_active": payload.activate,
         }).execute()
         year = result.data[0]
         _audit_business(context, "CREATE_SCHOOL_YEAR", "school_years", year["id"], new_data=year)
-        return {"school_year": year, "message": "Année créée. Les tarifs de référence ont été copiés automatiquement."}
+        return {"school_year": year, "message": f"Année créée. Ouverture : {opening_date.strftime('%d/%m/%Y')} ; fermeture : {closing_date.strftime('%d/%m/%Y')}. Les tarifs de référence ont été copiés automatiquement."}
     except Exception as exc:
         logger.exception("Création année scolaire impossible")
         raise HTTPException(status_code=400, detail="Création impossible : vérifiez que cette année n'existe pas déjà.")
