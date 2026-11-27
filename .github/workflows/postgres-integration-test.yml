@@ -1,0 +1,54 @@
+name: PostgreSQL schema integration test
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - "database/schema_v1_corrige.sql"
+      - "tests/schema_smoke_tests.sql"
+      - "tests/bootstrap_supabase_test.sql"
+      - ".github/workflows/postgres-integration-test.yml"
+  pull_request:
+    paths:
+      - "database/schema_v1_corrige.sql"
+      - "tests/schema_smoke_tests.sql"
+      - "tests/bootstrap_supabase_test.sql"
+      - ".github/workflows/postgres-integration-test.yml"
+  workflow_dispatch:
+
+jobs:
+  postgres-integration:
+    runs-on: ubuntu-latest
+    services:
+      postgres:
+        image: postgres:16
+        env:
+          POSTGRES_USER: postgres
+          POSTGRES_PASSWORD: postgres
+          POSTGRES_DB: gestion_beatrice_test
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd "pg_isready -U postgres -d gestion_beatrice_test"
+          --health-interval 5s
+          --health-timeout 5s
+          --health-retries 10
+    env:
+      PGHOST: localhost
+      PGPORT: 5432
+      PGUSER: postgres
+      PGPASSWORD: postgres
+      PGDATABASE: gestion_beatrice_test
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+      - name: Install PostgreSQL client
+        run: |
+          sudo apt-get update
+          sudo apt-get install --yes postgresql-client
+      - name: Prepare isolated Supabase-compatible test environment
+        run: psql --set ON_ERROR_STOP=1 --file tests/bootstrap_supabase_test.sql
+      - name: Execute schema in temporary PostgreSQL database
+        run: psql --set ON_ERROR_STOP=1 --file database/schema_v1_corrige.sql
+      - name: Run structural smoke tests
+        run: psql --set ON_ERROR_STOP=1 --file tests/schema_smoke_tests.sql
