@@ -498,28 +498,55 @@ def dashboard(context=Depends(current_profile)):
     role = profile["role"]
     year = client.table("school_years").select("id,label").eq("is_active", True).maybe_single().execute().data
     if not year:
-        return {"active_year": None, "students": 0, "payments": 0, "revenue": [], "balances": [], "recent_payments": []}
-    enrollments = client.table("student_enrollments").select("id,student_id,class_id,category_id,option_id").eq("school_year_id", year["id"]).execute().data or []
+        return {"active_year": None, "students": 0, "payments": 0, "revenue": [],
+                "balances": [], "recent_payments": []}
+
+    enrollments = client.table("student_enrollments").select(
+        "id,student_id,class_id,category_id,option_id"
+    ).eq("school_year_id", year["id"]).execute().data or []
     enrollment_ids = [e["id"] for e in enrollments]
-    payments = []
+    tariffs = client.table("fee_tariffs").select(
+        "id,fee_type_id,class_id,amount,currency"
+    ).eq("school_year_id", year["id"]).eq("is_active", True).execute().data or []
+
+    all_valid = []
     if enrollment_ids:
-        query = client.table("payments").select("id,enrollment_id,cashier_id,amount_paid,currency,payment_reference,payment_date,status").eq("status", "VALIDE").in_("enrollment_id", enrollment_ids)
-        if role == "CAISSIER":
-            query = query.eq("cashier_id", profile["id"])
-        payments = query.order("payment_date", desc=True).execute().data or []
+        all_valid = client.table("payments").select(
+            "id,enrollment_id,cashier_id,fee_tariff_id,amount_paid,currency,payment_reference,payment_date,status"
+        ).eq("status", "VALIDE").in_("enrollment_id", enrollment_ids).execute().data or []
+    visible_payments = [p for p in all_valid if role != "CAISSIER" or p["cashier_id"] == profile["id"]]
+
+    paid_by_key = {}
+    for payment in all_valid:
+        key = (payment["enrollment_id"], payment["fee_tariff_id"])
+        paid_by_key[key] = paid_by_key.get(key, Decimal("0")) + Decimal(str(payment["amount_paid"]))
+
+    tariff_by_id = {t["id"]: t for t in tariffs}
+    balances_by_currency = {}
+    for enrollment in enrollments:
+        for tariff in tariffs:
+            if tariff["class_id"] != enrollment["class_id"]:
+                continue
+            due = Decimal(str(tariff["amount"]))
+            paid = paid_by_key.get((enrollment["id"], tariff["id"]), Decimal("0"))
+            remaining = max(due - paid, Decimal("0"))
+            currency = tariff["currency"].strip()
+            if remaining:
+                balances_by_currency[currency] = balances_by_currency.get(currency, Decimal("0")) + remaining
+
     revenue = {}
-    for p in payments:
-        currency = p["currency"].strip()
-        revenue[currency] = revenue.get(currency, Decimal("0")) + Decimal(str(p["amount_paid"]))
+    for payment in visible_payments:
+        currency = payment["currency"].strip()
+        revenue[currency] = revenue.get(currency, Decimal("0")) + Decimal(str(payment["amount_paid"]))
+
     return {
         "active_year": year,
         "students": len({e["student_id"] for e in enrollments}),
-        "payments": len(payments),
+        "payments": len(visible_payments),
         "revenue": [{"currency": k, "amount": str(v)} for k, v in revenue.items()],
-        "balances": [],
-        "recent_payments": payments[:8],
+        "balances": [{"currency": k, "amount": str(v)} for k, v in balances_by_currency.items()],
+        "recent_payments": sorted(visible_payments, key=lambda p: p["payment_date"], reverse=True)[:8],
     }
-
 
 @app.get("/api/admin/school-years")
 def list_school_years(context=Depends(require_roles("ADMINISTRATEUR", "PREFET", "PROMOTEUR"))):
@@ -580,32 +607,71 @@ def activate_school_year(year_id: UUID, context=Depends(require_roles("ADMINISTR
 @app.get("/api/students")
 def list_students(q: str = "", context=Depends(require_roles("ADMINISTRATEUR", "PREFET", "PROMOTEUR", "CAISSIER"))):
     client = admin_client()
-    year = client.table("school_years").select("id").eq("is_active", True).maybe_single().execute().data
+    year = client.table("school_years").select("id,label").eq("is_active", True).maybe_single().execute().data
     if not year:
         return {"students": [], "active_year": None}
-    enrollments = client.table("student_enrollments").select("*").eq("school_year_id", year["id"]).execute().data or []
+
+    enrollments = client.table("student_enrollments").select("*").eq(
+        "school_year_id", year["id"]
+    ).execute().data or []
     ids = [e["student_id"] for e in enrollments]
     if not ids:
         return {"students": [], "active_year": year}
+
     students = client.table("students").select("*").in_("id", ids).order("full_name").execute().data or []
     classes = {x["id"]: x for x in _rows("classes", "id,name,category_id")}
-    categories = {x["id"]: x for x in _rows("categories", "id,name")}
+    categories = {x["id"]: x for x in _rows("categories", "id,name,code")}
     options = {x["id"]: x for x in _rows("options", "id,name")}
+    fee_types = {x["id"]: x for x in _rows("fee_types", "id,name")}
+    tariffs = client.table("fee_tariffs").select(
+        "id,fee_type_id,category_id,class_id,amount,currency,is_active"
+    ).eq("school_year_id", year["id"]).eq("is_active", True).execute().data or []
+    enrollment_ids = [e["id"] for e in enrollments]
+    payments = client.table("payments").select(
+        "enrollment_id,fee_tariff_id,amount_paid"
+    ).eq("status", "VALIDE").in_("enrollment_id", enrollment_ids).execute().data if enrollment_ids else []
+    paid_by_key = {}
+    for payment in payments or []:
+        key = (payment["enrollment_id"], payment["fee_tariff_id"])
+        paid_by_key[key] = paid_by_key.get(key, Decimal("0")) + Decimal(str(payment["amount_paid"]))
+
     enrolled_by_student = {e["student_id"]: e for e in enrollments}
     needle = q.strip().casefold()
     result = []
     for student in students:
-        e = enrolled_by_student.get(student["id"], {})
+        enrollment = enrolled_by_student.get(student["id"], {})
         if needle and needle not in student["full_name"].casefold() and needle not in student["student_number"].casefold():
             continue
-        cls = classes.get(e.get("class_id"), {})
-        cat = categories.get(e.get("category_id"), {})
-        opt = options.get(e.get("option_id"), {})
-        result.append({**student, "enrollment_id": e.get("id"), "class_name": cls.get("name"),
-                       "category_name": cat.get("name"), "option_name": opt.get("name"),
-                       "decision": e.get("decision")})
+        class_row = classes.get(enrollment.get("class_id"), {})
+        category = categories.get(enrollment.get("category_id"), {})
+        option = options.get(enrollment.get("option_id"), {})
+        fee_balances = []
+        for tariff in tariffs:
+            if tariff["class_id"] != enrollment.get("class_id"):
+                continue
+            due = Decimal(str(tariff["amount"]))
+            paid = paid_by_key.get((enrollment.get("id"), tariff["id"]), Decimal("0"))
+            fee_type = fee_types.get(tariff["fee_type_id"], {})
+            fee_balances.append({
+                "fee_tariff_id": tariff["id"],
+                "fee_type_id": tariff["fee_type_id"],
+                "fee_type_name": fee_type.get("name", "Frais"),
+                "amount_due": str(due),
+                "amount_paid": str(paid),
+                "remaining_balance": str(max(due - paid, Decimal("0"))),
+                "currency": tariff["currency"].strip(),
+            })
+        result.append({
+            **student,
+            "enrollment_id": enrollment.get("id"),
+            "class_name": class_row.get("name"),
+            "category_name": category.get("name"),
+            "category_code": category.get("code"),
+            "option_name": option.get("name"),
+            "decision": enrollment.get("decision"),
+            "fee_balances": fee_balances,
+        })
     return {"students": result, "active_year": year}
-
 
 class EnrollmentInput(BaseModel):
     student_id: Optional[UUID] = None
@@ -666,22 +732,41 @@ def create_enrollment(payload: EnrollmentInput, context=Depends(require_roles("P
 def list_payments(context=Depends(require_roles("ADMINISTRATEUR", "PREFET", "PROMOTEUR", "CAISSIER"))):
     client = admin_client()
     profile = context["profile"]
-    query = client.table("payments").select("*").order("payment_date", desc=True).limit(300)
+    query = client.table("payments").select("*").order("payment_date", desc=True).limit(500)
     if profile["role"] == "CAISSIER":
         query = query.eq("cashier_id", profile["id"])
     payments = query.execute().data or []
-    enroll_ids = list({p["enrollment_id"] for p in payments})
-    enrollments = client.table("student_enrollments").select("*").in_("id", enroll_ids).execute().data if enroll_ids else []
+    enrollment_ids = list({p["enrollment_id"] for p in payments})
+    enrollments = client.table("student_enrollments").select("*").in_("id", enrollment_ids).execute().data if enrollment_ids else []
     enrollment_map = {e["id"]: e for e in (enrollments or [])}
     student_ids = list({e["student_id"] for e in (enrollments or [])})
     students = client.table("students").select("id,student_number,full_name").in_("id", student_ids).execute().data if student_ids else []
     student_map = {s["id"]: s for s in (students or [])}
+    tariff_ids = list({p["fee_tariff_id"] for p in payments})
+    tariffs = client.table("fee_tariffs").select("id,fee_type_id,class_id,amount,currency").in_("id", tariff_ids).execute().data if tariff_ids else []
+    tariff_map = {t["id"]: t for t in (tariffs or [])}
+    fee_types = {x["id"]: x for x in _rows("fee_types", "id,name")}
+    classes = {x["id"]: x for x in _rows("classes", "id,name")}
+    options = {x["id"]: x for x in _rows("options", "id,name")}
+    tickets = client.table("tickets").select("payment_id,ticket_number").in_(
+        "payment_id", [p["id"] for p in payments]
+    ).execute().data if payments else []
+    ticket_map = {t["payment_id"]: t["ticket_number"] for t in (tickets or [])}
     result = []
-    for p in payments:
-        e = enrollment_map.get(p["enrollment_id"], {})
-        result.append({**p, "student": student_map.get(e.get("student_id"), {})})
+    for payment in payments:
+        enrollment = enrollment_map.get(payment["enrollment_id"], {})
+        tariff = tariff_map.get(payment["fee_tariff_id"], {})
+        student = student_map.get(enrollment.get("student_id"), {})
+        result.append({
+            **payment,
+            "student": student,
+            "ticket_number": ticket_map.get(payment["id"]),
+            "fee_type_name": fee_types.get(tariff.get("fee_type_id"), {}).get("name", "Frais"),
+            "class_name": classes.get(enrollment.get("class_id"), {}).get("name"),
+            "option_name": options.get(enrollment.get("option_id"), {}).get("name"),
+            "tariff_amount": str(tariff.get("amount", "0")),
+        })
     return {"payments": result}
-
 
 class PaymentInput(BaseModel):
     enrollment_id: UUID
@@ -730,6 +815,40 @@ def register_payment(payload: PaymentInput, context=Depends(require_roles("CAISS
     except Exception:
         logger.exception("Enregistrement paiement/ticket impossible")
         raise HTTPException(status_code=400, detail="Le paiement n'a pas pu être validé. Vérifiez le solde et réessayez.")
+
+
+class CorrectPaymentInput(BaseModel):
+    amount_paid: Decimal = Field(gt=0, max_digits=14, decimal_places=2)
+    notes: Optional[str] = Field(default=None, max_length=500)
+
+
+@app.patch("/api/payments/{payment_id}/correct")
+def correct_own_payment(payment_id: UUID, payload: CorrectPaymentInput, context=Depends(require_roles("CAISSIER"))):
+    client = admin_client()
+    profile_id = context["profile"]["id"]
+    payment = client.table("payments").select("*").eq("id", str(payment_id)).maybe_single().execute().data
+    if not payment or payment["cashier_id"] != profile_id or payment["status"] != "VALIDE":
+        raise HTTPException(status_code=404, detail="Paiement introuvable ou non modifiable dans votre espace.")
+    tariff = client.table("fee_tariffs").select("amount,currency").eq(
+        "id", payment["fee_tariff_id"]
+    ).single().execute().data
+    other_rows = client.table("payments").select("amount_paid").eq(
+        "enrollment_id", payment["enrollment_id"]
+    ).eq("fee_tariff_id", payment["fee_tariff_id"]).eq("status", "VALIDE").neq("id", str(payment_id)).execute().data or []
+    already_paid = sum((Decimal(str(row["amount_paid"])) for row in other_rows), Decimal("0"))
+    if already_paid + payload.amount_paid > Decimal(str(tariff["amount"])):
+        raise HTTPException(status_code=422, detail=f"La rectification dépasse le tarif autorisé. Solde maximal : {Decimal(str(tariff['amount'])) - already_paid} {tariff['currency'].strip()}.")
+    before = payment
+    updated = client.table("payments").update({
+        "amount_paid": str(payload.amount_paid),
+        "notes": payload.notes,
+        "updated_at": datetime.now(timezone.utc).isoformat(),
+    }).eq("id", str(payment_id)).eq("cashier_id", profile_id).eq("status", "VALIDE").execute().data
+    if not updated:
+        raise HTTPException(status_code=409, detail="Le paiement a changé entre-temps. Rechargez l'historique.")
+    _audit_business(context, "CORRECT_OWN_PAYMENT", "payments", payment_id,
+                    old_data=before, new_data=updated[0])
+    return {"payment": updated[0], "message": "Paiement rectifié. L'ancienne valeur reste conservée dans l'historique d'audit."}
 
 
 class CancelPaymentInput(BaseModel):
