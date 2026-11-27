@@ -19,8 +19,33 @@ FRONTEND_ORIGIN = os.getenv("FRONTEND_ORIGIN", "https://gestion-beatrice-officie
 BOOTSTRAP_ADMIN_ENABLED = os.getenv("BOOTSTRAP_ADMIN_ENABLED", "false").strip().lower() == "true"
 BOOTSTRAP_ADMIN_EMAIL = os.getenv("BOOTSTRAP_ADMIN_EMAIL", "").strip().lower()
 BOOTSTRAP_ADMIN_NAME = os.getenv("BOOTSTRAP_ADMIN_NAME", "").strip()
+TEMP_ADMIN_RESET_ENABLED = os.getenv("TEMP_ADMIN_RESET_ENABLED", "false").strip().lower() == "true"
+TEMP_ADMIN_PASSWORD = os.getenv("TEMP_ADMIN_PASSWORD", "").strip()
 
 app = FastAPI(title="GESTION BÉATRICE API", version="0.1.0")
+
+@app.on_event("startup")
+def apply_one_time_temporary_admin_password():
+    """Apply a one-time temporary password only when explicitly enabled in Render."""
+    if not TEMP_ADMIN_RESET_ENABLED:
+        return
+    if not TEMP_ADMIN_PASSWORD or len(TEMP_ADMIN_PASSWORD) < 16:
+        logger.error("Réinitialisation temporaire ignorée: mot de passe temporaire absent ou trop court.")
+        return
+    try:
+        client = admin_client()
+        profiles = client.table("profiles").select("auth_user_id").eq(
+            "id", "cef9d861-a921-40cf-8410-6af9ac4bf7a0"
+        ).eq("is_active", True).limit(1).execute().data or []
+        if not profiles:
+            logger.error("Réinitialisation temporaire ignorée: profil administrateur actif introuvable.")
+            return
+        client.auth.admin.update_user_by_id(
+            profiles[0]["auth_user_id"], {"password": TEMP_ADMIN_PASSWORD}
+        )
+        logger.info("Mot de passe temporaire administrateur appliqué avec succès.")
+    except Exception:
+        logger.exception("Échec de l'application du mot de passe temporaire administrateur.")
 app.add_middleware(
     CORSMiddleware,
     allow_origins=[FRONTEND_ORIGIN],
