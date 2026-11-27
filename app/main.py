@@ -560,7 +560,7 @@ def list_school_years(context=Depends(require_roles("ADMINISTRATEUR", "PREFET", 
 
 
 class SchoolYearInput(BaseModel):
-    label: str = Field(min_length=9, max_length=9, pattern=r"^\\d{4}-\\d{4}$")
+    label: str = Field(min_length=9, max_length=9)
     activate: bool = False
 
 
