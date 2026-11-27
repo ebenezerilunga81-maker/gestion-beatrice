@@ -340,6 +340,13 @@ def create_user(payload: CreateUserInput, context=Depends(require_admin)):
         write_audit("CREATE_PROFILE", context["profile"]["id"], profile["id"],
                     new_data={"full_name": payload.full_name, "role": payload.role, "is_active": True})
         return {"user": profile}
+    except HTTPException:
+        if auth_id:
+            try:
+                client.auth.admin.delete_user(auth_id)
+            except Exception:
+                logger.exception("Nettoyage Auth impossible après refus de création")
+        raise
     except Exception:
         logger.exception("Création de compte impossible")
         if auth_id:
