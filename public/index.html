@@ -186,9 +186,10 @@ async function renderPayments(){
     try{
      const result=await api("/api/students/search?q="+encodeURIComponent(term)),found=result.students||[];
      if(found.length){
-      suggestions.innerHTML=found.map((s,i)=>'<button type="button" class="btn secondary" data-student-index="'+i+'" style="margin:4px">'+esc(s.full_name)+' — '+esc(s.student_number)+' — '+esc(s.class_name||"Classe à préciser")+'</button>').join("");
+      suggestions.innerHTML=found.map((s,i)=>'<button type="button" class="btn secondary" data-student-index="'+i+'" style="margin:4px">'+esc(s.full_name)+' — '+esc(s.student_number)+' — '+esc(s.class_name||"Classe à préciser")+'</button>').join("")+'<button type="button" class="btn" id="createDistinctStudent" style="margin:4px">Créer une nouvelle fiche distincte</button>';
       suggestions.querySelectorAll("[data-student-index]").forEach(btn=>btn.addEventListener("click",()=>{const s=found[Number(btn.dataset.studentIndex)];suggestions.innerHTML="";setStudentDetails(s);}));
-      $("studentSelected").textContent="Sélectionnez le bon élève dans les propositions.";
+      $("createDistinctStudent").addEventListener("click",()=>{suggestions.innerHTML="";setStudentDetails(null);});
+      $("studentSelected").textContent="Sélectionnez le bon élève ou créez une fiche distincte si aucune proposition ne correspond.";
      }else{
       suggestions.innerHTML='<div class="notice">Aucun élève trouvé sous ce nom. Vous pouvez créer sa fiche au guichet.</div>';
       setStudentDetails(null);
