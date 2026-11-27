@@ -675,7 +675,7 @@ def list_students(q: str = "", context=Depends(require_roles("ADMINISTRATEUR", "
     ).eq("school_year_id", year["id"]).eq("is_active", True).execute().data or []
     enrollment_ids = [e["id"] for e in enrollments]
     payments = client.table("payments").select(
-        "enrollment_id,fee_tariff_id,amount_paid"
+        "enrollment_id,fee_tariff_id,amount_paid,currency,amount_usd"
     ).eq("status", "VALIDE").in_("enrollment_id", enrollment_ids).execute().data if enrollment_ids else []
     paid_by_key = {}
     for payment in payments or []:
@@ -696,7 +696,7 @@ def list_students(q: str = "", context=Depends(require_roles("ADMINISTRATEUR", "
         for tariff in tariffs:
             if tariff["class_id"] != enrollment.get("class_id"):
                 continue
-            due = Decimal(str(tariff["amount"]))
+            due = amount_to_usd(tariff["amount"], tariff["currency"])
             paid = paid_by_key.get((enrollment.get("id"), tariff["id"]), Decimal("0"))
             fee_type = fee_types.get(tariff["fee_type_id"], {})
             fee_balances.append({
@@ -706,7 +706,8 @@ def list_students(q: str = "", context=Depends(require_roles("ADMINISTRATEUR", "
                 "amount_due": str(due),
                 "amount_paid": str(paid),
                 "remaining_balance": str(max(due - paid, Decimal("0"))),
-                "currency": tariff["currency"].strip(),
+                "currency": "USD",
+                "tariff_currency": tariff["currency"].strip(),
             })
         result.append({
             **student,
