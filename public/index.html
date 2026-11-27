@@ -211,8 +211,8 @@ async function renderPayments(){
    const fee=currentFees.find(x=>String(x.fee_tariff_id)===feeSelect.value);
    const currency=$("paymentCurrency").value;
    if(fee){
-    const maxSource=Number(fee.remaining_balance)*(currency==="CDF"?2300:1);
-    amountInput.max=String(Math.floor(maxSource*100)/100);
+    const maxSource=currency==="CDF"?Math.floor((Number(fee.remaining_balance)+0.004999)*2300):Number(fee.remaining_balance);
+    amountInput.max=String(maxSource);
     amountInput.step=currency==="CDF"?"1":"0.01";
     amountInput.min=currency==="CDF"?"1":"0.01";
     $("paymentBalanceHint").textContent="Dû : "+money(fee.amount_due,"USD")+" · Déjà payé : "+money(fee.amount_paid,"USD")+" · Reste : "+money(fee.remaining_balance,"USD")+". Taux : 1 USD = 2 300 CDF.";
