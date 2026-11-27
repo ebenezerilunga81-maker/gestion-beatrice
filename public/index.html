@@ -44,6 +44,7 @@
    <label class="login-field"><span>Mot de passe</span><div class="password-wrap"><input id="loginPassword" type="password" autocomplete="current-password" placeholder="Votre mot de passe" required><button class="show-password" type="button" id="togglePassword">Afficher</button></div></label>
    <button class="login-submit" id="loginSubmit" type="submit">Se connecter</button>
    <button class="login-preview" type="button" id="bootstrapButton">Initialiser le premier compte administrateur</button>
+   <button class="login-preview" type="button" id="recoveryRequestButton">Recevoir un nouveau lien de mot de passe</button>
    <div class="login-error" id="loginError" role="alert"></div>
   </form>
   <button class="login-preview" type="button" id="previewButton">Voir l’aperçu de l’interface</button>
@@ -166,6 +167,7 @@
  const error = document.getElementById("loginError");
  const preview = document.getElementById("previewButton");
  const bootstrap = document.getElementById("bootstrapButton");
+ const recoveryRequestButton = document.getElementById("recoveryRequestButton");
  const toggle = document.getElementById("togglePassword");
  const showApp = (isPreview) => {
    screen.style.display = "none";
@@ -181,6 +183,26 @@
    toggle.textContent = hidden ? "Masquer" : "Afficher";
  });
  preview.addEventListener("click", () => showApp(true));
+ recoveryRequestButton.addEventListener("click", async () => {
+   recoveryRequestButton.disabled = true;
+   recoveryRequestButton.textContent = "Envoi en cours…";
+   error.style.display = "none";
+   try {
+     const response = await fetch(API_BASE + "/api/bootstrap/admin/send-recovery", {method:"POST"});
+     const data = await response.json().catch(() => ({}));
+     if (!response.ok) throw new Error(data.detail || "Envoi impossible pour le moment.");
+     showError(data.message || "Demande envoyée. Vérifiez votre boîte e-mail et les courriers indésirables.");
+     error.style.display = "block";
+     error.style.background = "#effaf4";
+     error.style.borderColor = "#bfe6ce";
+     error.style.color = "#17643a";
+     recoveryRequestButton.textContent = "Demande envoyée";
+   } catch (err) {
+     showError(err.message || "Le serveur est momentanément indisponible.");
+     recoveryRequestButton.disabled = false;
+     recoveryRequestButton.textContent = "Réessayer l’envoi du lien";
+   }
+ });
  bootstrap.addEventListener("click", async () => {
    if (!confirm("Créer le compte administrateur initial pour KANGODIA NKOKA Germain ? Un e-mail de définition du mot de passe sera envoyé à l'adresse configurée.")) return;
    bootstrap.disabled = true;
