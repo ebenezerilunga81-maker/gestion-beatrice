@@ -577,9 +577,9 @@ def school_year_dates(label: str):
     closing_date = Date(closing_year, 7, 2)
     # Si le 2 juillet tombe un samedi ou un dimanche, reporter au lundi suivant.
     if closing_date.weekday() == 5:
-        closing_date = Date(closing_year, 7, 5)
-    elif closing_date.weekday() == 6:
         closing_date = Date(closing_year, 7, 4)
+    elif closing_date.weekday() == 6:
+        closing_date = Date(closing_year, 7, 3)
     return opening_date, closing_date
 
 
