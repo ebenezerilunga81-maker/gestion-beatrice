@@ -332,6 +332,8 @@ grant execute on function public.create_school_year(text,date,date) to authentic
 -- ---------------------------------------------------------------------------
 -- 7. Paiement sécurisé : décision validée, année ouverte, tarif cohérent,
 -- plafond cumulé respecté, ticket généré dans la même transaction.
+-- Une inscription de l'année active n'est créée qu'après admission/validation administrative.
+-- La décision EN_ATTENTE de cette inscription concerne son passage futur, pas son paiement actuel.
 -- ---------------------------------------------------------------------------
 
 create function public.register_payment(
@@ -369,13 +371,10 @@ begin
   where id = p_enrollment_id
   for update;
   if not found then raise exception 'Inscription introuvable.'; end if;
-  if v_enrollment.decision = 'EN_ATTENTE' then
-    raise exception 'La décision de passage doit être validée avant tout paiement.';
-  end if;
-
   select * into v_year from public.school_years
   where id = v_enrollment.school_year_id;
-  if not found or not v_year.is_active or current_date < v_year.opening_date then
+  if not found or not v_year.is_active
+     or (now() at time zone 'Africa/Kinshasa')::date < v_year.opening_date then
     raise exception 'La caisse de cette année scolaire n’est pas encore ouverte.';
   end if;
 
