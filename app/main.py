@@ -44,8 +44,9 @@ def admin_client():
 
 class SetPasswordInput(BaseModel):
     model_config = ConfigDict(extra="forbid")
-    access_token: str = Field(min_length=20, max_length=8192)
-    refresh_token: str = Field(min_length=20, max_length=8192)
+    access_token: Optional[str] = Field(default=None, min_length=20, max_length=8192)
+    refresh_token: Optional[str] = Field(default=None, min_length=20, max_length=8192)
+    code: Optional[str] = Field(default=None, min_length=8, max_length=2048)
     password: str = Field(min_length=8, max_length=128)
 
 
@@ -204,9 +205,13 @@ def send_initial_admin_recovery():
             {"redirect_to": FRONTEND_ORIGIN},
         )
         return {"status": "requested", "message": "Si le compte existe, un e-mail de réinitialisation a été demandé."}
-    except Exception:
-        logger.warning("Demande de récupération initiale impossible")
-        raise HTTPException(status_code=400, detail="Impossible de demander l'e-mail. Réessayez plus tard.")
+    except Exception as exc:
+        # Supabase enforces its own email rate limits; do not retry automatically.
+        status_code = getattr(exc, "status", None) or getattr(exc, "status_code", None)
+        logger.warning("Demande de récupération impossible (status=%s)", status_code or "unknown")
+        if str(status_code) == "429" or "rate limit" in str(exc).lower() or "too many" in str(exc).lower():
+            raise HTTPException(status_code=429, detail="Supabase limite temporairement les envois. Attendez le délai indiqué avant de demander un nouveau lien.")
+        raise HTTPException(status_code=400, detail="Envoi impossible. Vérifiez la configuration e-mail Supabase et réessayez plus tard.")
 
 
 @app.post("/api/auth/set-password")
@@ -214,13 +219,20 @@ def set_password(payload: SetPasswordInput):
     """Complete a password-recovery session using the user's one-time tokens."""
     try:
         client = public_client()
-        client.auth.set_session(payload.access_token, payload.refresh_token)
+        if payload.code:
+            client.auth.exchange_code_for_session(payload.code)
+        elif payload.access_token and payload.refresh_token:
+            client.auth.set_session(payload.access_token, payload.refresh_token)
+        else:
+            raise HTTPException(status_code=422, detail="Le lien de réinitialisation est incomplet.")
         result = client.auth.update_user({"password": payload.password})
         if not result or not result.user:
             raise RuntimeError("Mise à jour du mot de passe non confirmée")
         return {"status": "updated", "message": "Mot de passe défini. Vous pouvez maintenant vous connecter."}
+    except HTTPException:
+        raise
     except Exception:
-        # Never log recovery tokens or passwords.
+        # Never log recovery tokens, authorization codes, or passwords.
         logger.warning("Définition du mot de passe refusée")
         raise HTTPException(status_code=400, detail="Lien invalide ou expiré. Demandez un nouvel e-mail de réinitialisation.")
 
