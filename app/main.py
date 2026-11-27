@@ -1,5 +1,6 @@
 import os
 import logging
+import secrets
 from typing import Optional
 from uuid import UUID
 
@@ -16,6 +17,9 @@ SUPABASE_URL = os.getenv("SUPABASE_URL", "").strip()
 SUPABASE_ANON_KEY = os.getenv("SUPABASE_ANON_KEY", "").strip()
 SUPABASE_SERVICE_ROLE_KEY = os.getenv("SUPABASE_SERVICE_ROLE_KEY", "").strip()
 FRONTEND_ORIGIN = os.getenv("FRONTEND_ORIGIN", "https://gestion-beatrice-officielle.onrender.com").strip()
+BOOTSTRAP_ADMIN_ENABLED = os.getenv("BOOTSTRAP_ADMIN_ENABLED", "false").strip().lower() == "true"
+BOOTSTRAP_ADMIN_EMAIL = os.getenv("BOOTSTRAP_ADMIN_EMAIL", "").strip().lower()
+BOOTSTRAP_ADMIN_NAME = os.getenv("BOOTSTRAP_ADMIN_NAME", "").strip()
 
 app = FastAPI(title="GESTION BÉATRICE API", version="0.1.0")
 app.add_middleware(
@@ -118,6 +122,70 @@ def ready():
     if not SUPABASE_URL or not SUPABASE_ANON_KEY:
         raise HTTPException(status_code=503, detail="Configuration Supabase incomplète.")
     return {"status": "ready"}
+
+
+
+@app.post("/api/bootstrap/admin")
+def bootstrap_first_admin():
+    """One-time bootstrap for the institution's preconfigured first administrator.
+    The account receives a random unknown password; access is completed only
+    through Supabase's password-recovery email sent to the fixed mailbox.
+    """
+    if not BOOTSTRAP_ADMIN_ENABLED or not BOOTSTRAP_ADMIN_EMAIL or not BOOTSTRAP_ADMIN_NAME:
+        raise HTTPException(status_code=404, detail="Initialisation indisponible.")
+    client = admin_client()
+    auth_id = None
+    profile_id = None
+    try:
+        existing = client.table("profiles").select("id").limit(1).execute().data or []
+        if existing:
+            raise HTTPException(status_code=409, detail="Le compte administrateur initial a déjà été créé.")
+        created = client.auth.admin.create_user({
+            "email": BOOTSTRAP_ADMIN_EMAIL,
+            "password": secrets.token_urlsafe(48),
+            "email_confirm": True,
+            "user_metadata": {"full_name": BOOTSTRAP_ADMIN_NAME},
+        })
+        if not created.user:
+            raise RuntimeError("Création Auth incomplète")
+        auth_id = str(created.user.id)
+        inserted = client.table("profiles").insert({
+            "auth_user_id": auth_id,
+            "full_name": BOOTSTRAP_ADMIN_NAME,
+            "role": "ADMINISTRATEUR",
+            "is_active": True,
+        }).execute()
+        if not inserted.data:
+            raise RuntimeError("Création du profil impossible")
+        profile_id = inserted.data[0]["id"]
+        client.table("audit_logs").insert({
+            "actor_profile_id": profile_id,
+            "action": "INITIAL_ADMIN_CREATED",
+            "table_name": "profiles",
+            "record_id": str(profile_id),
+            "new_data": {"full_name": BOOTSTRAP_ADMIN_NAME, "role": "ADMINISTRATEUR", "email": BOOTSTRAP_ADMIN_EMAIL},
+        }).execute()
+    except HTTPException:
+        raise
+    except Exception:
+        logger.exception("Initialisation du premier administrateur impossible")
+        if profile_id:
+            try:
+                client.table("profiles").delete().eq("id", profile_id).execute()
+            except Exception:
+                logger.exception("Nettoyage du profil initial impossible")
+        if auth_id:
+            try:
+                client.auth.admin.delete_user(auth_id)
+            except Exception:
+                logger.exception("Nettoyage du compte Auth initial impossible")
+        raise HTTPException(status_code=400, detail="Initialisation impossible. Vérifiez la configuration puis réessayez.")
+    try:
+        public_client().auth.reset_password_for_email(BOOTSTRAP_ADMIN_EMAIL)
+        return {"status": "created", "message": "Compte administrateur créé. Un e-mail de définition du mot de passe vient d'être demandé."}
+    except Exception:
+        logger.exception("Compte initial créé mais e-mail de récupération non envoyé")
+        return {"status": "created", "message": "Compte créé. Utilisez la fonction de réinitialisation du mot de passe ou vérifiez la configuration e-mail Supabase."}
 
 
 @app.post("/api/auth/login")
