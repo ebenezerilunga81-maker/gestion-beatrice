@@ -330,8 +330,8 @@ def create_user(payload: CreateUserInput, context=Depends(require_admin)):
         duplicate = client.table("profiles").select("id").ilike("username", username).limit(1).execute().data
         if duplicate:
             raise HTTPException(status_code=409, detail="Cet identifiant est déjà utilisé.")
-        # Adresse technique non destinée à recevoir des messages.
-        internal_email = f"{username.lower()}.{secrets.token_hex(6)}@accounts.gestion-beatrice.invalid"
+        # Adresse synthétique unique sur le domaine réservé example.com ; aucune adresse personnelle n'est requise.
+        internal_email = f"{username.lower()}.{secrets.token_hex(6)}@example.com"
         created = client.auth.admin.create_user({
             "email": internal_email, "password": payload.password,
             "email_confirm": True, "user_metadata": {"full_name": payload.full_name.strip(), "username": username},
