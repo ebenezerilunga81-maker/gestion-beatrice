@@ -40,7 +40,7 @@
   <h2 class="login-title" id="loginHeading">Connexion à votre espace</h2>
   <p class="login-subtitle">Veuillez saisir vos identifiants pour continuer.</p>
   <form id="loginForm">
-   <label class="login-field"><span>Adresse e-mail</span><input id="loginEmail" type="email" autocomplete="username" placeholder="nom@exemple.com" required></label>
+   <label class="login-field"><span>Identifiant ou adresse e-mail</span><input id="loginIdentifier" type="text" autocomplete="username" placeholder="KANGODIA" required></label>
    <label class="login-field"><span>Mot de passe</span><div class="password-wrap"><input id="loginPassword" type="password" autocomplete="current-password" placeholder="Votre mot de passe" required><button class="show-password" type="button" id="togglePassword">Afficher</button></div></label>
    <button class="login-submit" id="loginSubmit" type="submit">Se connecter</button>
    <button class="login-preview" type="button" id="bootstrapButton">Initialiser le premier compte administrateur</button>
@@ -184,7 +184,7 @@
 
  const screen = document.getElementById("loginScreen");
  const form = document.getElementById("loginForm");
- const email = document.getElementById("loginEmail");
+ const identifier = document.getElementById("loginIdentifier");
  const password = document.getElementById("loginPassword");
  const submit = document.getElementById("loginSubmit");
  const error = document.getElementById("loginError");
@@ -255,7 +255,7 @@
    try {
      const response = await fetch(API_BASE + "/api/auth/login", {
        method: "POST", headers: {"Content-Type":"application/json"},
-       body: JSON.stringify({email: email.value.trim(), password: password.value})
+       body: JSON.stringify({identifier: identifier.value.trim(), password: password.value})
      });
      const data = await response.json().catch(() => ({}));
      if (!response.ok) throw new Error(data.detail || "Connexion impossible. Vérifiez vos identifiants.");
