@@ -748,6 +748,9 @@ def list_payments(context=Depends(require_roles("ADMINISTRATEUR", "PREFET", "PRO
     fee_types = {x["id"]: x for x in _rows("fee_types", "id,name")}
     classes = {x["id"]: x for x in _rows("classes", "id,name")}
     options = {x["id"]: x for x in _rows("options", "id,name")}
+    cashier_ids = list({p["cashier_id"] for p in payments})
+    cashiers = client.table("profiles").select("id,full_name").in_("id", cashier_ids).execute().data if cashier_ids else []
+    cashier_map = {x["id"]: x["full_name"] for x in (cashiers or [])}
     tickets = client.table("tickets").select("payment_id,ticket_number").in_(
         "payment_id", [p["id"] for p in payments]
     ).execute().data if payments else []
@@ -765,6 +768,7 @@ def list_payments(context=Depends(require_roles("ADMINISTRATEUR", "PREFET", "PRO
             "class_name": classes.get(enrollment.get("class_id"), {}).get("name"),
             "option_name": options.get(enrollment.get("option_id"), {}).get("name"),
             "tariff_amount": str(tariff.get("amount", "0")),
+            "cashier_name": cashier_map.get(payment["cashier_id"], "Caissier"),
         })
     return {"payments": result}
 
