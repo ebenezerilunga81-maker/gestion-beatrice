@@ -42,6 +42,13 @@ def admin_client():
     return create_client(SUPABASE_URL, SUPABASE_SERVICE_ROLE_KEY)
 
 
+class SetPasswordInput(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+    access_token: str = Field(min_length=20, max_length=8192)
+    refresh_token: str = Field(min_length=20, max_length=8192)
+    password: str = Field(min_length=8, max_length=128)
+
+
 class LoginInput(BaseModel):
     email: EmailStr
     password: str = Field(min_length=1, max_length=256)
@@ -183,6 +190,22 @@ def bootstrap_first_admin():
     except Exception:
         logger.exception("Compte initial créé mais e-mail de récupération non envoyé")
         return {"status": "created", "message": "Compte créé. Utilisez la fonction de réinitialisation du mot de passe ou vérifiez la configuration e-mail Supabase."}
+
+
+@app.post("/api/auth/set-password")
+def set_password(payload: SetPasswordInput):
+    """Complete a password-recovery session using the user's one-time tokens."""
+    try:
+        client = public_client()
+        client.auth.set_session(payload.access_token, payload.refresh_token)
+        result = client.auth.update_user({"password": payload.password})
+        if not result or not result.user:
+            raise RuntimeError("Mise à jour du mot de passe non confirmée")
+        return {"status": "updated", "message": "Mot de passe défini. Vous pouvez maintenant vous connecter."}
+    except Exception:
+        # Never log recovery tokens or passwords.
+        logger.warning("Définition du mot de passe refusée")
+        raise HTTPException(status_code=400, detail="Lien invalide ou expiré. Demandez un nouvel e-mail de réinitialisation.")
 
 
 @app.post("/api/auth/login")
