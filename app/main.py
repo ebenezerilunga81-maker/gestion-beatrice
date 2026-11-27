@@ -84,6 +84,7 @@ class CreateUserInput(BaseModel):
     email: EmailStr
     password: str = Field(min_length=12, max_length=128)
     full_name: str = Field(min_length=2, max_length=160)
+    username: Optional[str] = Field(default=None, min_length=3, max_length=40, pattern="^[A-Za-z0-9_.-]+$")
     role: str = Field(pattern="^(PREFET|CAISSIER)$")
 
 
@@ -369,3 +370,370 @@ def update_user(profile_id: UUID, payload: UpdateUserInput, context=Depends(requ
     except Exception:
         logger.exception("Modification de compte impossible")
         raise HTTPException(status_code=400, detail="Modification du compte impossible.")
+
+
+# ---------------------------------------------------------------------------
+# Modules métier GESTION BÉATRICE — API protégée par rôle
+# ---------------------------------------------------------------------------
+from datetime import date as Date, datetime, timezone
+from decimal import Decimal, InvalidOperation
+
+
+def require_roles(*roles):
+    def dependency(context=Depends(current_profile)):
+        if context["profile"]["role"] not in roles:
+            raise HTTPException(status_code=403, detail="Vous n'avez pas l'autorisation d'accéder à ce module.")
+        return context
+    return dependency
+
+
+def _rows(table, columns="*"):
+    return admin_client().table(table).select(columns).execute().data or []
+
+
+def _audit_business(context, action, table_name, record_id, old_data=None, new_data=None):
+    admin_client().table("audit_logs").insert({
+        "actor_profile_id": context["profile"]["id"],
+        "action": action,
+        "table_name": table_name,
+        "record_id": str(record_id),
+        "old_data": old_data,
+        "new_data": new_data,
+    }).execute()
+
+
+@app.get("/api/references")
+def references(context=Depends(current_profile)):
+    client = admin_client()
+    years = client.table("school_years").select("*").order("start_date", desc=True).execute().data or []
+    active = next((y for y in years if y.get("is_active")), None)
+    return {
+        "categories": _rows("categories", "id,code,name"),
+        "classes": _rows("classes", "id,category_id,code,name,level_order"),
+        "options": _rows("options", "id,code,name,is_active"),
+        "fee_types": _rows("fee_types", "id,code,name,is_active"),
+        "active_year": active,
+        "school_years": years,
+        "tariffs": client.table("fee_tariffs").select(
+            "id,school_year_id,fee_type_id,category_id,class_id,amount,currency,is_active"
+        ).eq("school_year_id", active["id"]).execute().data if active else [],
+    }
+
+
+@app.get("/api/dashboard")
+def dashboard(context=Depends(current_profile)):
+    client = admin_client()
+    profile = context["profile"]
+    role = profile["role"]
+    year = client.table("school_years").select("id,label").eq("is_active", True).maybe_single().execute().data
+    if not year:
+        return {"active_year": None, "students": 0, "payments": 0, "revenue": [], "balances": [], "recent_payments": []}
+    enrollments = client.table("student_enrollments").select("id,student_id,class_id,category_id,option_id").eq("school_year_id", year["id"]).execute().data or []
+    enrollment_ids = [e["id"] for e in enrollments]
+    payments = []
+    if enrollment_ids:
+        query = client.table("payments").select("id,enrollment_id,cashier_id,amount_paid,currency,payment_reference,payment_date,status").eq("status", "VALIDE").in_("enrollment_id", enrollment_ids)
+        if role == "CAISSIER":
+            query = query.eq("cashier_id", profile["id"])
+        payments = query.order("payment_date", desc=True).execute().data or []
+    revenue = {}
+    for p in payments:
+        currency = p["currency"].strip()
+        revenue[currency] = revenue.get(currency, Decimal("0")) + Decimal(str(p["amount_paid"]))
+    return {
+        "active_year": year,
+        "students": len({e["student_id"] for e in enrollments}),
+        "payments": len(payments),
+        "revenue": [{"currency": k, "amount": str(v)} for k, v in revenue.items()],
+        "balances": [],
+        "recent_payments": payments[:8],
+    }
+
+
+@app.get("/api/admin/school-years")
+def list_school_years(context=Depends(require_roles("ADMINISTRATEUR", "PREFET"))):
+    return {"school_years": _rows("school_years")}
+
+
+class SchoolYearInput(BaseModel):
+    label: str = Field(min_length=7, max_length=20)
+    start_date: Date
+    end_date: Date
+    opening_date: Date
+    activate: bool = False
+
+
+@app.post("/api/admin/school-years", status_code=201)
+def create_school_year(payload: SchoolYearInput, context=Depends(require_roles("ADMINISTRATEUR"))):
+    if payload.end_date <= payload.start_date:
+        raise HTTPException(status_code=422, detail="La date de fin doit être après la date de début.")
+    if payload.opening_date < payload.start_date or payload.opening_date > payload.end_date:
+        raise HTTPException(status_code=422, detail="La date d'ouverture doit se situer dans l'année scolaire.")
+    # La rentrée est fixée au premier lundi de septembre.
+    september_first = Date(payload.start_date.year, 9, 1)
+    first_monday = september_first.replace(day=1)
+    first_monday = Date(september_first.year, 9, 1 + ((7 - september_first.weekday()) % 7))
+    if payload.opening_date != first_monday:
+        raise HTTPException(status_code=422, detail=f"La rentrée doit être le premier lundi de septembre ({first_monday.isoformat()}).")
+    client = admin_client()
+    try:
+        if payload.activate:
+            client.table("school_years").update({"is_active": False}).eq("is_active", True).execute()
+        result = client.table("school_years").insert({
+            "label": payload.label.strip(),
+            "start_date": payload.start_date.isoformat(),
+            "end_date": payload.end_date.isoformat(),
+            "opening_date": payload.opening_date.isoformat(),
+            "is_active": payload.activate,
+        }).execute()
+        year = result.data[0]
+        _audit_business(context, "CREATE_SCHOOL_YEAR", "school_years", year["id"], new_data=year)
+        return {"school_year": year, "message": "Année créée. Les tarifs de référence ont été copiés automatiquement."}
+    except Exception as exc:
+        logger.exception("Création année scolaire impossible")
+        raise HTTPException(status_code=400, detail="Création impossible : vérifiez que cette année n'existe pas déjà.")
+
+
+@app.post("/api/admin/school-years/{year_id}/activate")
+def activate_school_year(year_id: UUID, context=Depends(require_roles("ADMINISTRATEUR"))):
+    client = admin_client()
+    target = client.table("school_years").select("*").eq("id", str(year_id)).maybe_single().execute().data
+    if not target:
+        raise HTTPException(status_code=404, detail="Année scolaire introuvable.")
+    client.table("school_years").update({"is_active": False}).eq("is_active", True).execute()
+    updated = client.table("school_years").update({"is_active": True}).eq("id", str(year_id)).execute().data[0]
+    _audit_business(context, "ACTIVATE_SCHOOL_YEAR", "school_years", year_id, old_data={"is_active": False}, new_data={"is_active": True})
+    return {"school_year": updated}
+
+
+@app.get("/api/students")
+def list_students(q: str = "", context=Depends(require_roles("ADMINISTRATEUR", "PREFET", "CAISSIER"))):
+    client = admin_client()
+    year = client.table("school_years").select("id").eq("is_active", True).maybe_single().execute().data
+    if not year:
+        return {"students": [], "active_year": None}
+    enrollments = client.table("student_enrollments").select("*").eq("school_year_id", year["id"]).execute().data or []
+    ids = [e["student_id"] for e in enrollments]
+    if not ids:
+        return {"students": [], "active_year": year}
+    students = client.table("students").select("*").in_("id", ids).order("full_name").execute().data or []
+    classes = {x["id"]: x for x in _rows("classes", "id,name,category_id")}
+    categories = {x["id"]: x for x in _rows("categories", "id,name")}
+    options = {x["id"]: x for x in _rows("options", "id,name")}
+    enrolled_by_student = {e["student_id"]: e for e in enrollments}
+    needle = q.strip().casefold()
+    result = []
+    for student in students:
+        e = enrolled_by_student.get(student["id"], {})
+        if needle and needle not in student["full_name"].casefold() and needle not in student["student_number"].casefold():
+            continue
+        cls = classes.get(e.get("class_id"), {})
+        cat = categories.get(e.get("category_id"), {})
+        opt = options.get(e.get("option_id"), {})
+        result.append({**student, "enrollment_id": e.get("id"), "class_name": cls.get("name"),
+                       "category_name": cat.get("name"), "option_name": opt.get("name"),
+                       "decision": e.get("decision")})
+    return {"students": result, "active_year": year}
+
+
+class EnrollmentInput(BaseModel):
+    student_id: Optional[UUID] = None
+    full_name: str = Field(min_length=2, max_length=180)
+    date_of_birth: Optional[Date] = None
+    category_id: int
+    class_id: int
+    option_id: Optional[int] = None
+
+
+@app.post("/api/enrollments", status_code=201)
+def create_enrollment(payload: EnrollmentInput, context=Depends(require_roles("PREFET", "CAISSIER"))):
+    client = admin_client()
+    year = client.table("school_years").select("id").eq("is_active", True).maybe_single().execute().data
+    if not year:
+        raise HTTPException(status_code=409, detail="Aucune année scolaire active. L'administrateur doit d'abord ouvrir une année.")
+    cls = client.table("classes").select("id,category_id").eq("id", payload.class_id).maybe_single().execute().data
+    if not cls or cls["category_id"] != payload.category_id:
+        raise HTTPException(status_code=422, detail="La classe ne correspond pas à la catégorie sélectionnée.")
+    cat = client.table("categories").select("code").eq("id", payload.category_id).single().execute().data
+    if cat["code"] == "HUMANITE" and not payload.option_id:
+        raise HTTPException(status_code=422, detail="L'option est obligatoire pour les humanités.")
+    if cat["code"] != "HUMANITE" and payload.option_id:
+        raise HTTPException(status_code=422, detail="L'option est réservée aux humanités.")
+    if payload.option_id:
+        valid_option = client.table("options").select("id").eq("id", payload.option_id).eq("is_active", True).maybe_single().execute().data
+        if not valid_option:
+            raise HTTPException(status_code=422, detail="Option invalide.")
+    student_id = str(payload.student_id) if payload.student_id else None
+    try:
+        if student_id:
+            student = client.table("students").select("id,full_name").eq("id", student_id).single().execute().data
+            if not student:
+                raise HTTPException(status_code=404, detail="Élève introuvable.")
+        else:
+            created_student = client.table("students").insert({
+                "full_name": payload.full_name.strip(),
+                "date_of_birth": payload.date_of_birth.isoformat() if payload.date_of_birth else None,
+            }).execute().data[0]
+            student_id = created_student["id"]
+            student = created_student
+        created = client.table("student_enrollments").insert({
+            "student_id": student_id, "school_year_id": year["id"],
+            "category_id": payload.category_id, "class_id": payload.class_id,
+            "option_id": payload.option_id,
+        }).execute().data[0]
+        _audit_business(context, "CREATE_ENROLLMENT", "student_enrollments", created["id"],
+                        new_data={"student_id": student_id, "school_year_id": year["id"]})
+        return {"student": student, "enrollment": created}
+    except HTTPException:
+        raise
+    except Exception:
+        logger.exception("Inscription impossible")
+        raise HTTPException(status_code=400, detail="Inscription impossible. Vérifiez que l'élève n'est pas déjà inscrit pour cette année.")
+
+
+@app.get("/api/payments")
+def list_payments(context=Depends(require_roles("ADMINISTRATEUR", "PREFET", "CAISSIER"))):
+    client = admin_client()
+    profile = context["profile"]
+    query = client.table("payments").select("*").order("payment_date", desc=True).limit(300)
+    if profile["role"] == "CAISSIER":
+        query = query.eq("cashier_id", profile["id"])
+    payments = query.execute().data or []
+    enroll_ids = list({p["enrollment_id"] for p in payments})
+    enrollments = client.table("student_enrollments").select("*").in_("id", enroll_ids).execute().data if enroll_ids else []
+    enrollment_map = {e["id"]: e for e in (enrollments or [])}
+    student_ids = list({e["student_id"] for e in (enrollments or [])})
+    students = client.table("students").select("id,student_number,full_name").in_("id", student_ids).execute().data if student_ids else []
+    student_map = {s["id"]: s for s in (students or [])}
+    result = []
+    for p in payments:
+        e = enrollment_map.get(p["enrollment_id"], {})
+        result.append({**p, "student": student_map.get(e.get("student_id"), {})})
+    return {"payments": result}
+
+
+class PaymentInput(BaseModel):
+    enrollment_id: UUID
+    fee_tariff_id: UUID
+    amount_paid: Decimal = Field(gt=0, max_digits=14, decimal_places=2)
+    notes: Optional[str] = Field(default=None, max_length=500)
+
+
+@app.post("/api/payments", status_code=201)
+def register_payment(payload: PaymentInput, context=Depends(require_roles("CAISSIER"))):
+    client = admin_client()
+    profile_id = context["profile"]["id"]
+    year = client.table("school_years").select("id").eq("is_active", True).maybe_single().execute().data
+    if not year:
+        raise HTTPException(status_code=409, detail="Aucune année scolaire active.")
+    enrollment = client.table("student_enrollments").select("*").eq("id", str(payload.enrollment_id)).eq("school_year_id", year["id"]).maybe_single().execute().data
+    if not enrollment:
+        raise HTTPException(status_code=404, detail="Inscription active introuvable. Les archives ne peuvent pas être encaissées.")
+    tariff = client.table("fee_tariffs").select("*").eq("id", str(payload.fee_tariff_id)).eq("school_year_id", year["id"]).eq("is_active", True).maybe_single().execute().data
+    if not tariff or tariff["category_id"] != enrollment["category_id"] or tariff["class_id"] != enrollment["class_id"]:
+        raise HTTPException(status_code=422, detail="Tarif non applicable à la classe de cet élève.")
+    paid_rows = client.table("payments").select("amount_paid").eq("enrollment_id", str(payload.enrollment_id)).eq("fee_tariff_id", str(payload.fee_tariff_id)).eq("status", "VALIDE").execute().data or []
+    already_paid = sum((Decimal(str(x["amount_paid"])) for x in paid_rows), Decimal("0"))
+    due = Decimal(str(tariff["amount"]))
+    if already_paid + payload.amount_paid > due:
+        raise HTTPException(status_code=422, detail=f"Le versement dépasse le solde restant ({due - already_paid} {tariff['currency'].strip()}).")
+    reference = "GB-P-" + secrets.token_hex(6).upper()
+    ticket_number = "GB-T-" + secrets.token_hex(6).upper()
+    try:
+        result = client.rpc("register_school_payment", {
+            "p_enrollment_id": str(payload.enrollment_id),
+            "p_fee_tariff_id": str(payload.fee_tariff_id),
+            "p_cashier_id": profile_id,
+            "p_amount_paid": str(payload.amount_paid),
+            "p_currency": tariff["currency"].strip(),
+            "p_notes": payload.notes,
+            "p_payment_reference": reference,
+            "p_ticket_number": ticket_number,
+        }).execute()
+        row = result.data[0] if isinstance(result.data, list) and result.data else result.data
+        _audit_business(context, "REGISTER_PAYMENT", "payments", row["payment_id"],
+                        new_data={"reference": reference, "amount": str(payload.amount_paid), "currency": tariff["currency"].strip()})
+        return {"payment_id": row["payment_id"], "ticket_number": ticket_number, "payment_reference": reference,
+                "amount_paid": str(payload.amount_paid), "currency": tariff["currency"].strip(),
+                "remaining_balance": str(due - already_paid - payload.amount_paid)}
+    except Exception:
+        logger.exception("Enregistrement paiement/ticket impossible")
+        raise HTTPException(status_code=400, detail="Le paiement n'a pas pu être validé. Vérifiez le solde et réessayez.")
+
+
+class CancelPaymentInput(BaseModel):
+    reason: str = Field(min_length=5, max_length=500)
+
+
+@app.post("/api/payments/{payment_id}/cancel")
+def cancel_payment(payment_id: UUID, payload: CancelPaymentInput, context=Depends(require_roles("PREFET"))):
+    client = admin_client()
+    payment = client.table("payments").select("*").eq("id", str(payment_id)).maybe_single().execute().data
+    if not payment:
+        raise HTTPException(status_code=404, detail="Paiement introuvable.")
+    if payment["status"] != "VALIDE":
+        raise HTTPException(status_code=409, detail="Ce paiement est déjà annulé.")
+    changes = {"status":"ANNULE","annulled_at":datetime.now(timezone.utc).isoformat(),
+               "annulled_by":context["profile"]["id"],"annulment_reason":payload.reason.strip()}
+    updated = client.table("payments").update(changes).eq("id", str(payment_id)).execute().data[0]
+    _audit_business(context, "CANCEL_PAYMENT", "payments", payment_id, old_data=payment, new_data=updated)
+    return {"payment": updated}
+
+
+@app.get("/api/admin/tariffs")
+def list_tariffs(context=Depends(require_roles("ADMINISTRATEUR", "PREFET"))):
+    return {"templates": _rows("fee_tariff_templates"), "tariffs": _rows("fee_tariffs")}
+
+
+class TariffUpdateInput(BaseModel):
+    amount: Decimal = Field(ge=0, max_digits=14, decimal_places=2)
+    is_active: bool = True
+
+
+@app.patch("/api/admin/tariffs/{tariff_id}")
+def update_tariff(tariff_id: UUID, payload: TariffUpdateInput, context=Depends(require_roles("ADMINISTRATEUR"))):
+    client = admin_client()
+    before = client.table("fee_tariffs").select("*").eq("id", str(tariff_id)).maybe_single().execute().data
+    if not before:
+        raise HTTPException(status_code=404, detail="Tarif annuel introuvable.")
+    updated = client.table("fee_tariffs").update({"amount":str(payload.amount),"is_active":payload.is_active}).eq("id", str(tariff_id)).execute().data[0]
+    _audit_business(context, "UPDATE_ANNUAL_TARIFF", "fee_tariffs", tariff_id, old_data=before, new_data=updated)
+    return {"tariff": updated}
+
+
+class DecisionInput(BaseModel):
+    decision: str = Field(pattern="^(PROMU|REDOUBLE|SORTANT|FIN_CYCLE)$")
+
+
+@app.patch("/api/admin/enrollments/{enrollment_id}/decision")
+def validate_decision(enrollment_id: UUID, payload: DecisionInput, context=Depends(require_roles("ADMINISTRATEUR"))):
+    client = admin_client()
+    enrollment = client.table("student_enrollments").select("*").eq("id", str(enrollment_id)).maybe_single().execute().data
+    if not enrollment:
+        raise HTTPException(status_code=404, detail="Inscription introuvable.")
+    cls = client.table("classes").select("code").eq("id", enrollment["class_id"]).single().execute().data
+    if payload.decision == "FIN_CYCLE" and cls["code"] != "SEC4":
+        raise HTTPException(status_code=422, detail="La fin de cycle concerne uniquement la quatrième humanité.")
+    changes = {"decision":payload.decision,"decision_validated_by":context["profile"]["id"],
+               "decision_validated_at":datetime.now(timezone.utc).isoformat()}
+    updated = client.table("student_enrollments").update(changes).eq("id", str(enrollment_id)).execute().data[0]
+    _audit_business(context, "VALIDATE_STUDENT_DECISION", "student_enrollments", enrollment_id,
+                    old_data=enrollment, new_data=updated)
+    return {"enrollment": updated}
+
+
+@app.get("/api/reports/summary")
+def report_summary(context=Depends(require_roles("ADMINISTRATEUR", "PREFET"))):
+    client = admin_client()
+    years = client.table("school_years").select("*").order("start_date", desc=True).execute().data or []
+    payments = client.table("payments").select("*").order("payment_date", desc=True).limit(2000).execute().data or []
+    valid = [p for p in payments if p["status"] == "VALIDE"]
+    totals = {}
+    for p in valid:
+        cur = p["currency"].strip()
+        totals[cur] = totals.get(cur, Decimal("0")) + Decimal(str(p["amount_paid"]))
+    return {"school_years":years,"valid_payments":len(valid),
+            "revenue":[{"currency":k,"amount":str(v)} for k,v in totals.items()],
+            "annulled_payments":len(payments)-len(valid)}
+
+
