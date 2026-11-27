@@ -28,7 +28,7 @@ for index, match in enumerate(functions):
     end = functions[index + 1].start() if index + 1 < len(functions) else len(sql)
     body = sql[match.start():end]
     name = match.group(1)
-    if re.search(r"(?i)security\s+definer", body):
+    if re.search(r"(?im)^\s*security\s+definer\s*$", body):
         require(re.search(r"(?i)set\s+search_path\s*=\s*''", body) is not None,
                 f"{name}: SECURITY DEFINER lacks empty search_path")
         require(re.search(rf"(?i)revoke\s+all\s+on\s+function\s+{re.escape(name)}\s*\(", sql) is not None,
