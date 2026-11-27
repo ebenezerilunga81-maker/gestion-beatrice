@@ -930,6 +930,12 @@ def student_payment_history(student_id: UUID, context=Depends(require_roles("CAI
     year_ids = list({row["school_year_id"] for row in enrollments})
     years = client.table("school_years").select("id,label,is_active").in_("id", year_ids).execute().data or []
     year_map = {row["id"]: row["label"] for row in years}
+    class_ids = list({row["class_id"] for row in enrollments if row.get("class_id")})
+    option_ids = list({row["option_id"] for row in enrollments if row.get("option_id")})
+    classes = client.table("classes").select("id,name").in_("id", class_ids).execute().data if class_ids else []
+    options = client.table("options").select("id,name").in_("id", option_ids).execute().data if option_ids else []
+    class_map = {row["id"]: row["name"] for row in (classes or [])}
+    option_map = {row["id"]: row["name"] for row in (options or [])}
     tariff_ids = list({row["fee_tariff_id"] for row in payments})
     tariffs = client.table("fee_tariffs").select(
         "id,fee_type_id,amount,currency"
@@ -956,6 +962,8 @@ def student_payment_history(student_id: UUID, context=Depends(require_roles("CAI
             "school_year_label": year_map.get(enrollment.get("school_year_id"), "—"),
             "ticket_number": ticket_map.get(payment["id"]),
             "fee_type_name": fee_type.get("name", "Frais"),
+            "class_name": class_map.get(enrollment.get("class_id"), "—"),
+            "option_name": option_map.get(enrollment.get("option_id"), ""),
             "cashier_name": cashier_map.get(payment.get("cashier_id"), "Caissier"),
         })
     active_year = next((row for row in enrollments if year_map.get(row["school_year_id"]) and any(
