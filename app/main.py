@@ -81,10 +81,10 @@ class LoginInput(BaseModel):
 
 
 class CreateUserInput(BaseModel):
-    email: EmailStr
+    model_config = ConfigDict(extra="forbid")
     password: str = Field(min_length=12, max_length=128)
     full_name: str = Field(min_length=2, max_length=160)
-    username: Optional[str] = Field(default=None, min_length=3, max_length=40, pattern="^[A-Za-z0-9_.-]+$")
+    username: str = Field(min_length=3, max_length=40, pattern="^[A-Za-z0-9_.-]+$")
     role: str = Field(pattern="^(PROMOTEUR|PREFET|CAISSIER)$")
 
 
