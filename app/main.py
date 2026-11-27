@@ -91,6 +91,7 @@ class CreateUserInput(BaseModel):
 class UpdateUserInput(BaseModel):
     model_config = ConfigDict(extra="forbid")
     full_name: Optional[str] = Field(default=None, min_length=2, max_length=160)
+    username: Optional[str] = Field(default=None, min_length=3, max_length=40, pattern="^[A-Za-z0-9_.-]+$")
     role: Optional[str] = Field(default=None, pattern="^(PROMOTEUR|PREFET|CAISSIER)$")
     is_active: Optional[bool] = None
 
@@ -366,12 +367,17 @@ def create_user(payload: CreateUserInput, context=Depends(require_admin)):
 @app.patch("/api/admin/users/{profile_id}")
 def update_user(profile_id: UUID, payload: UpdateUserInput, context=Depends(require_admin)):
     changes = payload.model_dump(exclude_unset=True, exclude_none=True)
+    if "username" in changes:
+        changes["username"] = changes["username"].strip().upper()
+        duplicate = admin_client().table("profiles").select("id").ilike("username", changes["username"]).neq("id", str(profile_id)).limit(1).execute().data
+        if duplicate:
+            raise HTTPException(status_code=409, detail="Cet identifiant est déjà utilisé.")
     if not changes:
         raise HTTPException(status_code=400, detail="Aucune modification fournie.")
     client = admin_client()
     try:
         before = client.table("profiles").select(
-            "id,auth_user_id,full_name,role,is_active"
+            "id,auth_user_id,full_name,username,role,is_active"
         ).eq("id", str(profile_id)).in_("role", ["PROMOTEUR", "PREFET", "CAISSIER"]).maybe_single().execute().data
         if not before:
             raise HTTPException(status_code=404, detail="Compte introuvable.")
