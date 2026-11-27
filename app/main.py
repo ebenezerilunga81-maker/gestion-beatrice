@@ -419,11 +419,11 @@ def delete_user(profile_id: UUID, context=Depends(require_admin)):
         ).in_("role", ["PROMOTEUR", "PREFET", "CAISSIER"]).maybe_single().execute().data
         if not target:
             raise HTTPException(status_code=404, detail="Compte introuvable ou suppression interdite.")
-        # Conserver l'intégrité financière : un caissier ayant encaissé ne peut être effacé.
-        if target["role"] == "CAISSIER":
-            linked = client.table("payments").select("id").eq("cashier_id", str(profile_id)).limit(1).execute().data
-            if linked:
-                raise HTTPException(status_code=409, detail="Ce caissier a déjà enregistré des paiements. Désactivez son compte pour conserver l'historique financier.")
+        # Conserver l'intégrité financière : tout compte ayant encaissé un paiement
+        # reste dans l'historique et doit être désactivé plutôt que supprimé.
+        linked = client.table("payments").select("id").eq("cashier_id", str(profile_id)).limit(1).execute().data
+        if linked:
+            raise HTTPException(status_code=409, detail="Ce compte est associé à des paiements enregistrés. Désactivez-le pour conserver l'historique financier.")
         write_audit("DELETE_PROFILE", context["profile"]["id"], str(profile_id),
                     old_data={"full_name": target["full_name"], "username": target["username"], "role": target["role"]})
         client.table("payments").update({"annulled_by": None}).eq("annulled_by", str(profile_id)).execute()
