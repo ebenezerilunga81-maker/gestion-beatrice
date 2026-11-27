@@ -658,6 +658,8 @@ using ((select public.current_app_role())='ADMINISTRATEUR');
 -- tickets, décisions et annulations. Le backend de confiance gère les profils et tarifs.
 
 revoke all on all tables in schema public from anon, authenticated;
+-- Le backend Render est le seul détenteur de la clé service_role ; elle ne va jamais dans le navigateur.
+grant all privileges on all tables in schema public to service_role;
 grant select on
   public.profiles, public.school_years, public.holidays, public.categories,
   public.classes, public.options, public.fee_types, public.students,
@@ -668,7 +670,7 @@ grant select on public.fee_tariff_templates to authenticated;
 
 -- Explicitement, pas d'accès API anonyme.
 revoke all on all sequences in schema public from anon, authenticated;
-grant usage, select on sequence public.student_number_seq to authenticated;
+grant usage, select on all sequences in schema public to service_role;
 
 -- ---------------------------------------------------------------------------
 -- 11. Données de référence
