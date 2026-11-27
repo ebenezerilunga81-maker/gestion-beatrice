@@ -152,11 +152,17 @@ if(isCashier){
    catch(x){message(x.message,"error");}
  });
 }
+document.querySelectorAll(".printPaymentTicket").forEach(btn=>btn.addEventListener("click",()=>{
+ const d=btn.dataset;
+ lastTicket={ticket_number:d.ticket,payment_reference:d.reference,student_name:d.student,student_number:d.studentno,class_name:d.class,option_name:d.option,fee_type_name:d.fee,amount_paid:d.amount,currency:d.currency,issued_at:d.date,cashier_name:d.cashier,remaining_balance:"—"};
+ printLastTicket();
+}));
 if(lastTicket&&$("printTicket"))$("printTicket").addEventListener("click",printLastTicket);
 }
 function paymentRows(rows,showActions=true){
- return rows.length?rows.map(p=>'<tr><td>'+new Date(p.payment_date).toLocaleString("fr-FR")+'</td><td>'+esc(p.ticket_number||"—")+'</td><td>'+esc(p.payment_reference)+'</td><td>'+esc(p.student?.full_name||"—")+'</td><td>'+esc(p.fee_type_name||"—")+'</td><td><b>'+money(p.amount_paid,p.currency)+'</b></td><td><span class="tag '+(p.status==="VALIDE"?"green":"red")+'">'+esc(p.status)+'</span></td>'+(showActions?'<td>'+(p.status==="VALIDE"?'<button class="btn secondary correctPayment" data-id="'+p.id+'" data-amount="'+p.amount_paid+'" data-notes="'+esc(p.notes||"")+'">Rectifier</button>':'—')+'</td>':'')+'</tr>').join(""):'<tr><td colspan="'+(showActions?8:7)+'" class="empty">Aucun paiement enregistré pour le moment.</td></tr>';
+ return rows.length?rows.map(p=>'<tr><td>'+new Date(p.payment_date).toLocaleString("fr-FR")+'</td><td>'+esc(p.ticket_number||"—")+'</td><td>'+esc(p.payment_reference)+'</td><td>'+esc(p.student?.full_name||"—")+'</td><td>'+esc(p.fee_type_name||"—")+'</td><td><b>'+money(p.amount_paid,p.currency)+'</b></td><td><span class="tag '+(p.status==="VALIDE"?"green":"red")+'">'+esc(p.status)+'</span></td>'+(showActions?'<td>'+(p.status==="VALIDE"?'<button class="btn secondary printPaymentTicket" data-ticket="'+esc(p.ticket_number||"")+'" data-reference="'+esc(p.payment_reference||"")+'" data-student="'+esc(p.student?.full_name||"")+'" data-studentno="'+esc(p.student?.student_number||"")+'" data-class="'+esc(p.class_name||"")+'" data-option="'+esc(p.option_name||"")+'" data-fee="'+esc(p.fee_type_name||"")+'" data-amount="'+esc(p.amount_paid)+'" data-currency="'+esc(p.currency)+'" data-date="'+esc(p.payment_date)+'" data-cashier="'+esc(p.cashier_name||"Caissier")+'">Ticket</button> <button class="btn secondary correctPayment" data-id="'+p.id+'" data-amount="'+p.amount_paid+'" data-notes="'+esc(p.notes||"")+'">Rectifier</button>':'—')+'</td>':'')+'</tr>').join(""):'<tr><td colspan="'+(showActions?8:7)+'" class="empty">Aucun paiement enregistré pour le moment.</td></tr>';
 }
+
 function printLastTicket(){
  if(!lastTicket)return;
  const t=lastTicket,w=window.open("","_blank","width=420,height=650");
