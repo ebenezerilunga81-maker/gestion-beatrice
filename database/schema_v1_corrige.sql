@@ -482,7 +482,7 @@ create function public.correct_own_payment(
 )
 returns void language plpgsql security definer
 set search_path = ''
-as $
+as $$
 declare
   v_profile uuid;
   v_role text;
@@ -546,7 +546,7 @@ begin
                        'payment_date',coalesce(p_new_payment_date,v_payment.payment_date),
                        'notes',p_new_notes));
 end;
-$;
+$$;
 revoke all on function public.correct_own_payment(uuid,numeric,timestamptz,text) from public, anon;
 grant execute on function public.correct_own_payment(uuid,numeric,timestamptz,text) to authenticated;
 
