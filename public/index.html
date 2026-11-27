@@ -47,6 +47,16 @@
    <div class="login-error" id="loginError" role="alert"></div>
   </form>
   <button class="login-preview" type="button" id="previewButton">Voir l’aperçu de l’interface</button>
+  <section id="recoveryPanel" style="display:none">
+   <h2 class="login-title">Définir votre mot de passe</h2>
+   <p class="login-subtitle">Choisissez un mot de passe sécurisé pour votre compte.</p>
+   <form id="recoveryForm">
+    <label class="login-field"><span>Nouveau mot de passe</span><input id="newPassword" type="password" autocomplete="new-password" minlength="8" maxlength="128" required></label>
+    <label class="login-field"><span>Confirmer le mot de passe</span><input id="confirmPassword" type="password" autocomplete="new-password" minlength="8" maxlength="128" required></label>
+    <button class="login-submit" id="recoverySubmit" type="submit">Enregistrer le mot de passe</button>
+    <div class="login-error" id="recoveryError" role="alert"></div>
+   </form>
+  </section>
   <p class="login-security">Accès réservé au personnel autorisé · Connexion sécurisée</p>
  </section>
 </div>
@@ -107,6 +117,47 @@
 <script>
 (() => {
  const API_BASE = "https://gestion-beatrice-api.onrender.com";
+ const recoveryPanel = document.getElementById("recoveryPanel");
+ const recoveryForm = document.getElementById("recoveryForm");
+ const recoveryError = document.getElementById("recoveryError");
+ const recoverySubmit = document.getElementById("recoverySubmit");
+ const hash = new URLSearchParams(window.location.hash.replace(/^#/, ""));
+ const recoveryMode = hash.get("type") === "recovery" && hash.has("access_token") && hash.has("refresh_token");
+ if (recoveryMode) {
+   document.getElementById("loginForm").style.display = "none";
+   document.getElementById("previewButton").style.display = "none";
+   document.getElementById("loginHeading").style.display = "none";
+   document.querySelector(".login-subtitle").style.display = "none";
+   recoveryPanel.style.display = "block";
+   history.replaceState(null, "", window.location.pathname + window.location.search);
+ }
+ recoveryForm.addEventListener("submit", async (event) => {
+   event.preventDefault();
+   recoveryError.style.display = "none";
+   const newPassword = document.getElementById("newPassword").value;
+   const confirmPassword = document.getElementById("confirmPassword").value;
+   if (newPassword.length < 8) { recoveryError.textContent = "Le mot de passe doit contenir au moins 8 caractères."; recoveryError.style.display = "block"; return; }
+   if (newPassword !== confirmPassword) { recoveryError.textContent = "Les deux mots de passe ne correspondent pas."; recoveryError.style.display = "block"; return; }
+   recoverySubmit.disabled = true;
+   recoverySubmit.textContent = "Enregistrement…";
+   try {
+     const response = await fetch(API_BASE + "/api/auth/set-password", {
+       method: "POST", headers: {"Content-Type":"application/json"},
+       body: JSON.stringify({access_token: hash.get("access_token"), refresh_token: hash.get("refresh_token"), password: newPassword})
+     });
+     const data = await response.json().catch(() => ({}));
+     if (!response.ok) throw new Error(data.detail || "Impossible de définir le mot de passe.");
+     recoveryPanel.innerHTML = '<div class="login-error" style="display:block;background:#effaf4;border-color:#bfe6ce;color:#17643a"></div><button class="login-submit" id="backToLogin" type="button">Retour à la connexion</button>';
+     recoveryPanel.querySelector(".login-error").textContent = data.message || "Mot de passe enregistré.";
+     document.getElementById("backToLogin").addEventListener("click", () => window.location.replace(window.location.pathname));
+   } catch (err) {
+     recoveryError.textContent = err.message || "Lien invalide ou expiré.";
+     recoveryError.style.display = "block";
+     recoverySubmit.disabled = false;
+     recoverySubmit.textContent = "Enregistrer le mot de passe";
+   }
+ });
+
  const screen = document.getElementById("loginScreen");
  const form = document.getElementById("loginForm");
  const email = document.getElementById("loginEmail");
