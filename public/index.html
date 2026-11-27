@@ -81,7 +81,7 @@ if(user.role==="CAISSIER"){
   $("closeDashboardCorrection").addEventListener("click",()=>$("dashboardCorrectionModal").classList.add("hidden"));
   $("dashboardCorrectionForm").addEventListener("submit",async e=>{
     e.preventDefault();const form=e.target,id=form.elements.payment_id.value,term=form.dataset.search||search.value;
-    try{await api("/api/payments/"+id+"/correct",{method:"PATCH",body:JSON.stringify({amount_paid:Number(form.elements.amount_paid.value),notes:form.elements.notes.value})});$("dashboardCorrectionModal").classList.add("hidden");message("Paiement rectifié. L’ancienne valeur reste conservée dans le journal d’audit.");await renderDashboard();const nextSearch=$("dashboardStudentSearch");nextSearch.value=term;nextSearch.dispatchEvent(new Event("input"));}
+    try{await api("/api/payments/"+id+"/correct",{method:"PATCH",body:JSON.stringify({amount_paid:Number(form.elements.amount_paid.value),notes:form.elements.notes.value})});$("dashboardCorrectionModal").classList.add("hidden");await renderDashboard();message("Paiement rectifié. L’ancienne valeur reste conservée dans le journal d’audit.");const nextSearch=$("dashboardStudentSearch");nextSearch.value=term;nextSearch.dispatchEvent(new Event("input"));}
     catch(err){message(err.message,"error");}
   });
   let timer=null,request=0;
