@@ -257,7 +257,7 @@ async function renderPayments(){
    }catch(x){message(x.message,"error");}
   });
   document.querySelectorAll(".correctPayment").forEach(btn=>btn.addEventListener("click",()=>{
-   const modal=$("correctionModal"),form=$("correctionForm");form.elements.payment_id.value=btn.dataset.id;form.elements.amount_paid.value=btn.dataset.amount;form.elements.notes.value=btn.dataset.notes||"Rectification de caisse";modal.classList.remove("hidden");
+   const modal=$("correctionModal"),form=$("correctionForm");form.elements.payment_id.value=btn.dataset.id;form.elements.amount_paid.value=btn.dataset.amount;form.elements.notes.value=btn.dataset.notes||"Rectification de caisse";form.querySelector("label span").textContent="Nouveau montant reçu ("+btn.dataset.currency+") *";modal.classList.remove("hidden");
   }));
   $("closeCorrection").addEventListener("click",()=>$("correctionModal").classList.add("hidden"));
   $("correctionForm").addEventListener("submit",async e=>{
