@@ -579,11 +579,7 @@ begin
   if v_profile is null or v_role <> 'ADMINISTRATEUR' then
     raise exception 'Seul l’administrateur peut valider les décisions scolaires.';
   end if;
-  if (now() at time zone 'Africa/Kinshasa')::date < make_date(
-      extract(year from (now() at time zone 'Africa/Kinshasa'))::int,7,2) then
-    raise exception 'Les décisions ne peuvent être validées qu’à partir du 2 juillet.';
-  end if;
-  if p_decision not in ('PROMU','REDOUBLE','SORTANT','FIN_CYCLE') then
+  if p_decision is null or p_decision not in ('PROMU','REDOUBLE','SORTANT','FIN_CYCLE') then
     raise exception 'Décision invalide.';
   end if;
 
@@ -594,6 +590,12 @@ begin
   end if;
   select * into v_year from public.school_years where id=v_enrollment.school_year_id;
   if not found then raise exception 'Année scolaire introuvable.'; end if;
+
+  -- La proclamation est fixée au 2 juillet de l'année de fin de cette inscription.
+  if (now() at time zone 'Africa/Kinshasa')::date
+       < make_date(extract(year from v_year.end_date)::int,7,2) then
+    raise exception 'Les décisions ne peuvent être validées qu’à partir du 2 juillet de l’année de fin scolaire.';
+  end if;
 
   select cl.code into v_class_code from public.classes cl where cl.id=v_enrollment.class_id;
 
