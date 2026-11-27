@@ -8,7 +8,6 @@ from fastapi import FastAPI, Depends, HTTPException, Header, status
 from fastapi.middleware.cors import CORSMiddleware
 from pydantic import BaseModel, EmailStr, Field, ConfigDict
 from supabase import create_client
-from supabase.lib.client_options import ClientOptions
 
 logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger("gestion-beatrice")
@@ -34,15 +33,13 @@ app.add_middleware(
 def public_client():
     if not SUPABASE_URL or not SUPABASE_ANON_KEY:
         raise HTTPException(status_code=503, detail="Authentification non configurée.")
-    return create_client(SUPABASE_URL, SUPABASE_ANON_KEY,
-        options=ClientOptions(auto_refresh_token=False, persist_session=False))
+    return create_client(SUPABASE_URL, SUPABASE_ANON_KEY)
 
 
 def admin_client():
     if not SUPABASE_URL or not SUPABASE_SERVICE_ROLE_KEY:
         raise HTTPException(status_code=503, detail="Service administratif non configuré.")
-    return create_client(SUPABASE_URL, SUPABASE_SERVICE_ROLE_KEY,
-        options=ClientOptions(auto_refresh_token=False, persist_session=False))
+    return create_client(SUPABASE_URL, SUPABASE_SERVICE_ROLE_KEY)
 
 
 class LoginInput(BaseModel):
