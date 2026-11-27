@@ -98,7 +98,7 @@ async function renderStudents(){
   $("enrollCategory").addEventListener("change",e=>{$("enrollClass").innerHTML='<option value="">Choisir…</option>'+classOptions(e.target.value);$("optionField").classList.toggle("hidden",refs.categories.find(x=>String(x.id)===e.target.value)?.code!=="HUMANITE");});
   let adminSearchTimer=null;
   $("adminStudentName").addEventListener("input",()=>{
-   clearTimeout(adminSearchTimer);$("adminStudentId").value="";$("adminStudentSuggestions").innerHTML="";
+   clearTimeout(adminSearchTimer);$("adminStudentId").value="";$("adminStudentSuggestions").innerHTML="";$("enrollForm").querySelector('button[type="submit"]').disabled=!refs.active_year;
    const term=$("adminStudentName").value.trim();if(term.length<2)return;
    adminSearchTimer=setTimeout(async()=>{
     try{
