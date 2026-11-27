@@ -31,8 +31,8 @@ for index, match in enumerate(functions):
     if re.search(r"(?i)security\s+definer", body):
         require(re.search(r"(?i)set\s+search_path\s*=\s*''", body) is not None,
                 f"{name}: SECURITY DEFINER lacks empty search_path")
-        require(re.search(r"(?i)revoke\s+all\s+on\s+function", body) is not None,
-                f"{name}: no explicit function EXECUTE revocation found before next function")
+        require(re.search(rf"(?i)revoke\s+all\s+on\s+function\s+{re.escape(name)}\s*\(", sql) is not None,
+                f"{name}: no explicit function EXECUTE revocation found")
 
 tables = re.findall(r"(?im)^alter table public\.([a-z_]+) enable row level security;", sql)
 require(len(tables) == 14, f"Expected 14 RLS-enabled tables, found {len(tables)}")
