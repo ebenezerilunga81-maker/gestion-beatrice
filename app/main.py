@@ -327,9 +327,14 @@ def create_user(payload: CreateUserInput, context=Depends(require_admin)):
         if not created.user:
             raise RuntimeError("Auth user missing")
         auth_id = str(created.user.id)
+        username = payload.username.strip().upper() if payload.username else None
+        if username:
+            duplicate = client.table("profiles").select("id").ilike("username", username).limit(1).execute().data
+            if duplicate:
+                raise HTTPException(status_code=409, detail="Cet identifiant est déjà utilisé.")
         inserted = client.table("profiles").insert({
             "auth_user_id": auth_id, "full_name": payload.full_name.strip(),
-            "role": payload.role, "is_active": True,
+            "username": username, "role": payload.role, "is_active": True,
         }).execute()
         profile = inserted.data[0]
         write_audit("CREATE_PROFILE", context["profile"]["id"], profile["id"],
