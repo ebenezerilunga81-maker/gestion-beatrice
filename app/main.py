@@ -580,52 +580,43 @@ def dashboard(context=Depends(current_profile)):
         revenue_total = sum(
             (payment_amount_usd(payment) for payment in cashier_payments), Decimal("0")
         )
-        # Statistiques agrégées par classe pour le tableau de bord caisse.
-        # Les indicateurs personnels du caissier ci-dessus restent strictement inchangés.
+        # Statistiques par classe : seuls les élèves ayant au moins un paiement validé sont comptés.
         all_enrollments = client.table("student_enrollments").select(
             "id,student_id,class_id"
         ).eq("school_year_id", year["id"]).execute().data or []
-        all_enrollment_ids = [row["id"] for row in all_enrollments]
+        enrollment_map = {row["id"]: row for row in all_enrollments}
+        class_rows = client.table("classes").select("id,name").execute().data or []
+        class_names = {row["id"]: row["name"] for row in class_rows}
+        class_stats = {}
+        for enrollment in all_enrollments:
+            cid = enrollment["class_id"]
+            class_stats.setdefault(cid, {
+                "class_name": class_names.get(cid, "Classe"),
+                "students_paid": set(), "paid": Decimal("0")
+            })
+        all_enrollment_ids = list(enrollment_map.keys())
         all_class_payments = []
         if all_enrollment_ids:
             all_class_payments = client.table("payments").select(
                 "enrollment_id,amount_paid,currency,amount_usd"
             ).eq("status", "VALIDE").in_("enrollment_id", all_enrollment_ids).execute().data or []
-        class_rows = client.table("classes").select("id,name").execute().data or []
-        class_names = {row["id"]: row["name"] for row in class_rows}
-        class_stats = {}
-        enrollment_class = {}
-        for enrollment in all_enrollments:
+        for payment in all_class_payments:
+            enrollment = enrollment_map.get(payment["enrollment_id"])
+            if not enrollment:
+                continue
             cid = enrollment["class_id"]
-            enrollment_class[enrollment["id"]] = cid
             stat = class_stats.setdefault(cid, {
                 "class_name": class_names.get(cid, "Classe"),
-                "students": set(), "paid": Decimal("0")
+                "students_paid": set(), "paid": Decimal("0")
             })
-            stat["students"].add(enrollment["student_id"])
-        for payment in all_class_payments:
-            cid = enrollment_class.get(payment["enrollment_id"])
-            if cid in class_stats:
-                class_stats[cid]["paid"] += payment_amount_usd(payment)
-        active_tariffs = client.table("fee_tariffs").select(
-            "class_id,amount,currency"
-        ).eq("school_year_id", year["id"]).eq("is_active", True).execute().data or []
-        tariffs_by_class = {}
-        for tariff in active_tariffs:
-            cid = tariff["class_id"]
-            tariffs_by_class[cid] = tariffs_by_class.get(cid, Decimal("0")) + amount_to_usd(
-                tariff["amount"], tariff["currency"]
-            )
+            stat["students_paid"].add(enrollment["student_id"])
+            stat["paid"] += payment_amount_usd(payment)
         class_summary = []
-        for cid, stat in class_stats.items():
-            due = tariffs_by_class.get(cid, Decimal("0")) * len(stat["students"])
-            paid = stat["paid"]
+        for stat in class_stats.values():
             class_summary.append({
                 "class_name": stat["class_name"],
-                "students": len(stat["students"]),
-                "paid_usd": str(paid),
-                "due_usd": str(due),
-                "rate_pct": float((paid / due * 100) if due > 0 else Decimal("0"))
+                "students_paid": len(stat["students_paid"]),
+                "paid_usd": str(stat["paid"]),
             })
         class_summary.sort(key=lambda row: row["class_name"])
         return {
