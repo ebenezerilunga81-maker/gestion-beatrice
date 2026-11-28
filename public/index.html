@@ -475,35 +475,20 @@ function classOptions(catId){return (refs?.classes||[]).filter(c=>String(c.categ
 function categoryOptions(){return (refs?.categories||[]).map(c=>'<option value="'+c.id+'">'+esc(c.name)+'</option>').join("")}
 function optionOptions(){return (refs?.options||[]).filter(o=>o.is_active).map(o=>'<option value="'+o.id+'">'+esc(o.name)+'</option>').join("")}
 async function renderStudents(){
- const data=await api("/api/students"),rows=data.students||[],canManage=user.role==="ADMINISTRATEUR";
- $("pageContent").innerHTML=heading("Élèves & inscriptions",canManage?"Gestion des fiches et inscriptions de l’année scolaire active":"Consultation des élèves de l’année scolaire active")+
- (canManage?'<section class="panel"><div class="panelhead"><h2>Ajouter un élève / inscrire</h2><span>'+esc(refs.active_year?.label||"Aucune année active")+'</span></div><form id="enrollForm" class="formgrid"><label class="field"><span>Nom complet de l’élève *</span><input name="full_name" id="adminStudentName" required minlength="2"></label><input type="hidden" name="student_id" id="adminStudentId"><div class="field full" id="adminStudentSuggestions"></div><label class="field"><span>Date de naissance (facultatif)</span><input name="date_of_birth" type="date"></label><label class="field"><span>Catégorie *</span><select name="category_id" id="enrollCategory" required><option value="">Choisir…</option>'+categoryOptions()+'</select></label><label class="field"><span>Classe *</span><select name="class_id" id="enrollClass" required><option value="">Choisir la catégorie d’abord</option></select></label><label class="field hidden" id="optionField"><span>Option des humanités *</span><select name="option_id"><option value="">Choisir…</option>'+optionOptions()+'</select></label><div class="field full"><button class="btn" type="submit" '+(!refs.active_year?'disabled':'')+'>Enregistrer la fiche et l’inscription</button></div></form></section>':'<div class="notice">Les fiches et inscriptions sont consultables ici. Leur création manuelle est réservée à l’administrateur.</div>')+
- '<section class="panel"><div class="panelhead"><h2>Liste des élèves</h2><span>'+rows.length+' résultat(s)</span></div><div class="toolbar"><input class="search" id="studentSearch" placeholder="Rechercher par nom ou numéro…"><button class="btn secondary" id="searchStudents">Rechercher</button></div><div class="tablewrap"><table class="table"><thead><tr><th>N° élève</th><th>Nom complet</th><th>Section</th><th>Classe</th><th>Option</th><th>Décision</th></tr></thead><tbody id="studentRows">'+studentRows(rows)+'</tbody></table></div></section>';
- if(canManage){
-  $("enrollCategory").addEventListener("change",e=>{$("enrollClass").innerHTML='<option value="">Choisir…</option>'+classOptions(e.target.value);$("optionField").classList.toggle("hidden",refs.categories.find(x=>String(x.id)===e.target.value)?.code!=="HUMANITE");});
-  let adminSearchTimer=null;
-  $("adminStudentName").addEventListener("input",()=>{
-   clearTimeout(adminSearchTimer);$("adminStudentId").value="";$("adminStudentSuggestions").innerHTML="";$("enrollForm").querySelector('button[type="submit"]').disabled=!refs.active_year;
-   const term=$("adminStudentName").value.trim();if(term.length<2)return;
-   adminSearchTimer=setTimeout(async()=>{
-    try{
-     const found=(await api("/api/students/search?q="+encodeURIComponent(term))).students||[];
-     if(!found.length)return;
-     $("adminStudentSuggestions").innerHTML='<div class="muted">Fiches déjà présentes — sélectionnez si c’est le même élève :</div>'+found.map((s,i)=>'<button type="button" class="btn secondary" data-admin-student="'+i+'" style="margin:4px">'+esc(s.full_name)+' — '+esc(s.student_number)+' — '+esc(s.class_name||"Inscription à compléter")+'</button>').join("");
-     $("adminStudentSuggestions").querySelectorAll("[data-admin-student]").forEach(btn=>btn.addEventListener("click",()=>{
-      const s=found[Number(btn.dataset.adminStudent)];$("adminStudentName").value=s.full_name;$("adminStudentId").value=s.id;
-      $("adminStudentSuggestions").innerHTML='<div class="notice">'+(s.enrollment_id?"Cet élève possède déjà une inscription pour l’année active.":"Fiche existante sélectionnée : elle sera réutilisée, sans créer de doublon.")+'</div>';
-      $("enrollForm").querySelector('button[type="submit"]').disabled=!!s.enrollment_id;
-     }));
-    }catch(x){$("adminStudentSuggestions").textContent=x.message;}
-   },250);
-  });
-  $("enrollForm").addEventListener("submit",async e=>{e.preventDefault();const f=new FormData(e.target),body=Object.fromEntries(f.entries());body.student_id=body.student_id||null;body.category_id=Number(body.category_id);body.class_id=Number(body.class_id);body.option_id=body.option_id?Number(body.option_id):null;try{await api("/api/enrollments",{method:"POST",body:JSON.stringify(body)});message("Fiche et inscription enregistrées.");await renderStudents();}catch(x){message(x.message,"error");}});
- }
- $("searchStudents").addEventListener("click",async()=>{const d=await api("/api/students?q="+encodeURIComponent($("studentSearch").value));$("studentRows").innerHTML=studentRows(d.students||[]);});
+ const data=await api("/api/students"),rows=data.students||[];
+ const total=(arr,key)=>arr.reduce((sum,x)=>sum+Number(x[key]||0),0);
+ const studentRows=rows.map(s=>{
+  const fees=s.fee_balances||[],due=total(fees,"amount_due"),paid=total(fees,"amount_paid"),remaining=total(fees,"remaining_balance");
+  const state=due<=0?"À vérifier":remaining<=0?"Soldé":paid>0?"Partiel":"Non payé";
+  return '<tr><td>'+esc(s.student_number)+'</td><td><b>'+esc(s.full_name)+'</b></td><td>'+esc(s.category_name||"—")+'</td><td>'+esc(s.class_name||"—")+'</td><td>'+esc(s.option_name||"—")+'</td><td>'+money(paid,"USD")+'</td><td>'+money(remaining,"USD")+'</td><td><span class="tag '+(state==="Soldé"?"green":state==="Non payé"?"red":"")+'">'+state+'</span></td></tr>';
+ }).join("");
+ $("pageContent").innerHTML=heading("Répertoire financier des élèves","Fiches d’identification et situation des paiements pour l’année active.")+
+ '<section class="panel"><div class="panelhead"><div><h2>Fiches élèves</h2><p class="muted">Les fiches sont créées à la caisse lors du premier paiement et réutilisées pour les versements suivants.</p></div><span class="tag">'+esc(data.active_year?.label||"Aucune année active")+'</span></div>'+
+ '<div class="toolbar"><input class="search" id="studentSearch" placeholder="Rechercher par nom ou numéro…"><button class="btn secondary" id="searchStudents">Rechercher</button></div>'+
+ '<div class="tablewrap"><table class="table"><thead><tr><th>N° élève</th><th>Nom complet</th><th>Section</th><th>Classe</th><th>Option</th><th>Total payé</th><th>Solde restant</th><th>Situation</th></tr></thead><tbody id="studentRows">'+(studentRows||'<tr><td colspan="8" class="empty">Aucune fiche financière pour l’année active.</td></tr>')+'</tbody></table></div></section>';
+ $("searchStudents").addEventListener("click",async()=>{const d=await api("/api/students?q="+encodeURIComponent($("studentSearch").value));const found=d.students||[];$("studentRows").innerHTML=found.length?found.map(s=>{const fees=s.fee_balances||[],paid=total(fees,"amount_paid"),remaining=total(fees,"remaining_balance");return '<tr><td>'+esc(s.student_number)+'</td><td><b>'+esc(s.full_name)+'</b></td><td>'+esc(s.category_name||"—")+'</td><td>'+esc(s.class_name||"—")+'</td><td>'+esc(s.option_name||"—")+'</td><td>'+money(paid,"USD")+'</td><td>'+money(remaining,"USD")+'</td><td><span class="tag">'+(remaining<=0?"Soldé":paid>0?"Partiel":"Non payé")+'</span></td></tr>';}).join(""):'<tr><td colspan="8" class="empty">Aucun élève trouvé.</td></tr>';});
  $("studentSearch").addEventListener("keydown",e=>{if(e.key==="Enter")$("searchStudents").click();});
 }
-function studentRows(rows){return rows.length?rows.map(s=>'<tr><td>'+esc(s.student_number)+'</td><td><b>'+esc(s.full_name)+'</b></td><td>'+esc(s.category_name)+'</td><td>'+esc(s.class_name)+'</td><td>'+esc(s.option_name||"—")+'</td><td><span class="tag">'+esc(s.decision||"EN_ATTENTE")+'</span></td></tr>').join(""):'<tr><td colspan="6" class="empty">Aucun élève trouvé pour cette année scolaire.</td></tr>'}
 async function renderPayments(){
  const [d,sd]=await Promise.all([api("/api/payments"),api("/api/students")]);
  const isCashier=user.role==="CAISSIER";
