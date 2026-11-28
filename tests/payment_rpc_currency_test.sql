@@ -1,6 +1,7 @@
 -- GESTION BÉATRICE — test isolé du RPC de paiement USD/CDF.
 -- Exécuté uniquement dans PostgreSQL éphémère de GitHub Actions.
 -- Toutes les données de test sont annulées à la fin.
+-- Ce scénario couvre aussi la signature RPC et les permissions d’exécution.
 
 begin;
 
