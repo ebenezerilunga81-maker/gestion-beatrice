@@ -915,10 +915,14 @@ def create_enrollment(payload: EnrollmentInput, context=Depends(require_roles("A
 
 
 @app.get("/api/payments")
-def list_payments(context=Depends(require_roles("ADMINISTRATEUR", "PREFET", "PROMOTEUR", "CAISSIER"))):
+def list_payments(
+    limit: int = 500,
+    context=Depends(require_roles("ADMINISTRATEUR", "PREFET", "PROMOTEUR", "CAISSIER")),
+):
     client = admin_client()
     profile = context["profile"]
-    query = client.table("payments").select("*").order("payment_date", desc=True).limit(500)
+    safe_limit = max(1, min(limit, 500))
+    query = client.table("payments").select("*").order("payment_date", desc=True).limit(safe_limit)
     if profile["role"] == "CAISSIER":
         query = query.eq("cashier_id", profile["id"])
     payments = query.execute().data or []
