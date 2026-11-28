@@ -347,18 +347,20 @@ function roleAllowed(...roles){return roles.includes(user.role)}
 function showLogin(){ $("loginScreen").classList.remove("hidden");$("app").classList.add("hidden");}
 async function enterApp(){try{refs=await api("/api/references");sessionStorage.setItem("gb_user",JSON.stringify(user));$("loginScreen").classList.add("hidden");$("app").classList.remove("hidden");$("userName").textContent=user.full_name||"Utilisateur";$("userName").parentElement.setAttribute("data-initials",(user.full_name||"GB").trim().split(/\s+/).slice(0,2).map(x=>x[0]).join("").toUpperCase());$("userRole").textContent=roleNames[user.role]||user.role;applyPermissions();await navigate("dashboard");}catch(e){token="";sessionStorage.removeItem("gb_access_token");sessionStorage.removeItem("gb_refresh_token");sessionStorage.removeItem("gb_user");showLogin();$("loginError").textContent=e.message;$("loginError").style.display="block";}}
 function applyPermissions(){
- if(!roleAllowed("ADMINISTRATEUR")){
-  document.querySelector('[data-page="accounts"]').classList.add("hidden");
-  document.querySelector('[data-page="years"]').classList.add("hidden");
-  document.querySelector('[data-page="tariffs"]').classList.add("hidden");
- }
- if(!roleAllowed("ADMINISTRATEUR","PREFET","PROMOTEUR"))document.querySelector('[data-page="headcounts"]').classList.add("hidden");
- if(user.role==="CAISSIER"){
-  document.querySelector('[data-page="students"]').classList.add("hidden");
-  document.querySelector('[data-page="headcounts"]').classList.add("hidden");
- }
+ const admin=user.role==="ADMINISTRATEUR";
+ const cashier=user.role==="CAISSIER";
+ const show=(pageName,visible)=>document.querySelector('[data-page="'+pageName+'"]')?.classList.toggle("hidden",!visible);
+ show("payments",cashier); show("students",!cashier); show("headcounts",!cashier);
+ show("reports",!cashier); show("accounts",admin); show("years",admin);
+ show("tariffs",admin); show("settings",admin);
 }
-async function navigate(p){page=p;document.querySelectorAll("[data-page]").forEach(b=>b.classList.toggle("active",b.dataset.page===p));$("crumbTitle").textContent=titles[p];try{if(p==="dashboard")await renderDashboard();else if(p==="students")await renderStudents();else if(p==="payments")await renderPayments();else if(p==="years")await renderYears();else if(p==="headcounts")await renderHeadcounts();else if(p==="accounts")await renderAccounts();else if(p==="tariffs")await renderTariffs();else if(p==="reports")await renderArchive();else await renderSettings();}catch(e){$("pageContent").innerHTML=heading(titles[p],"")+'<div class="error">'+esc(e.message)+'</div>';}}
+async function navigate(p){
+ const allowed={payments:user.role==="CAISSIER",students:user.role!=="CAISSIER",headcounts:user.role!=="CAISSIER",reports:user.role!=="CAISSIER",accounts:user.role==="ADMINISTRATEUR",years:user.role==="ADMINISTRATEUR",tariffs:user.role==="ADMINISTRATEUR",settings:user.role==="ADMINISTRATEUR"};
+ if(allowed[p]===false)p="dashboard";
+ page=p;document.querySelectorAll("[data-page]").forEach(b=>b.classList.toggle("active",b.dataset.page===p));$("crumbTitle").textContent=titles[p];
+ try{if(p==="dashboard")await renderDashboard();else if(p==="students")await renderStudents();else if(p==="payments")await renderPayments();else if(p==="years")await renderYears();else if(p==="headcounts")await renderHeadcounts();else if(p==="accounts")await renderAccounts();else if(p==="tariffs")await renderTariffs();else if(p==="reports")await renderArchive();else await renderSettings();}
+ catch(e){$("pageContent").innerHTML=heading(titles[p],"")+'<div class="error">'+esc(e.message)+'</div>';}
+}
 document.querySelectorAll("[data-page]").forEach(b=>b.addEventListener("click",()=>navigate(b.dataset.page)));
 $("loginForm").addEventListener("submit",async e=>{e.preventDefault();const btn=$("loginSubmit"),err=$("loginError");btn.disabled=true;btn.textContent="Connexion…";err.style.display="none";try{const data=await api("/api/auth/login",{method:"POST",body:JSON.stringify({identifier:$("loginIdentifier").value.trim(),password:$("loginPassword").value})});token=data.access_token;user=data.user||{};sessionStorage.setItem("gb_access_token",token);sessionStorage.setItem("gb_refresh_token",data.refresh_token);sessionStorage.setItem("gb_user",JSON.stringify(user));await enterApp();}catch(x){err.textContent=x.message;err.style.display="block";}finally{btn.disabled=false;btn.textContent="Se connecter";}});
 $("logoutBtn").addEventListener("click",()=>{token="";sessionStorage.clear();location.reload()});
@@ -463,6 +465,23 @@ if(user.role==="CAISSIER"){
   });
   return;
 }
+if(user.role!=="CAISSIER"){
+ const year=refs?.active_year,categories=refs?.categories||[],classes=refs?.classes||[],fees=refs?.fee_types||[];
+ $("pageContent").innerHTML=heading("Administration générale","Espace réservé au pilotage administratif et à la configuration de l’établissement.")+
+ '<div class="cards cards-three"><article class="card"><div class="cardtop">Année scolaire active</div><div class="value" style="font-size:20px">'+esc(year?.label||"Non configurée")+'</div><div class="sub">'+(year?"Année ouverte":"Créez puis ouvrez une année scolaire")+'</div></article>'+
+ '<article class="card"><div class="cardtop">Sections</div><div class="value">'+categories.length+'</div><div class="sub">Structure de l’établissement</div></article>'+
+ '<article class="card"><div class="cardtop">Classes</div><div class="value">'+classes.length+'</div><div class="sub">Référentiel des classes</div></article>'+
+ '<article class="card"><div class="cardtop">Types de frais</div><div class="value">'+fees.length+'</div><div class="sub">Référentiel tarifaire</div></article></div>'+
+ '<section class="panel"><div class="panelhead"><div><h2>Tableaux administratifs</h2><p class="muted">Ces espaces servent à organiser les informations et les paramètres de l’établissement. Les encaissements sont exclusivement réservés au caissier.</p></div></div>'+
+ '<div class="grid"><article class="panel"><h3>Fiches élèves</h3><p class="muted">Consulter le répertoire des fiches d’identification et le rattachement scolaire.</p><button class="btn secondary" data-go="students">Ouvrir les fiches élèves</button></article>'+
+ '<article class="panel"><h3>Effectifs scolaires</h3><p class="muted">Déclarer les effectifs annuels, garçons et filles, par section, classe et option.</p><button class="btn secondary" data-go="headcounts">Gérer les effectifs</button></article>'+
+ '<article class="panel"><h3>Années scolaires</h3><p class="muted">Créer, consulter et ouvrir les années scolaires.</p><button class="btn secondary" data-go="years">Gérer les années</button></article>'+
+ '<article class="panel"><h3>Tarifs scolaires</h3><p class="muted">Configurer les montants dus par année, classe et type de frais.</p><button class="btn secondary" data-go="tariffs">Gérer les tarifs</button></article>'+
+ '<article class="panel"><h3>Utilisateurs et rôles</h3><p class="muted">Créer et gérer les comptes et leurs autorisations.</p><button class="btn secondary" data-go="accounts">Gérer les comptes</button></article>'+
+ '<article class="panel"><h3>Archivage</h3><p class="muted">Consulter les données financières archivées en lecture seule.</p><button class="btn secondary" data-go="reports">Ouvrir l’archivage</button></article></div></section>';
+ document.querySelectorAll("[data-go]").forEach(b=>b.addEventListener("click",()=>navigate(b.dataset.go)));
+ return;
+}
 const d=await api("/api/dashboard");
 const rev=(d.revenue||[]).map(x=>money(x.amount,x.currency)).join(" · ")||"—";
 $("pageContent").innerHTML=heading("Tableau de bord","Vue générale de l'établissement")+(d.active_year?"":'<div class="notice">Aucune année scolaire n’est encore active. L’administrateur doit créer et ouvrir l’année scolaire avant les inscriptions et les encaissements.</div>')+
@@ -475,19 +494,16 @@ function classOptions(catId){return (refs?.classes||[]).filter(c=>String(c.categ
 function categoryOptions(){return (refs?.categories||[]).map(c=>'<option value="'+c.id+'">'+esc(c.name)+'</option>').join("")}
 function optionOptions(){return (refs?.options||[]).filter(o=>o.is_active).map(o=>'<option value="'+o.id+'">'+esc(o.name)+'</option>').join("")}
 async function renderStudents(){
- const data=await api("/api/students"),rows=data.students||[];
- const total=(arr,key)=>arr.reduce((sum,x)=>sum+Number(x[key]||0),0);
- const studentRows=rows.map(s=>{
-  const fees=s.fee_balances||[],due=total(fees,"amount_due"),paid=total(fees,"amount_paid"),remaining=total(fees,"remaining_balance");
-  const state=due<=0?"À vérifier":remaining<=0?"Soldé":paid>0?"Partiel":"Non payé";
-  return '<tr><td>'+esc(s.student_number)+'</td><td><b>'+esc(s.full_name)+'</b></td><td>'+esc(s.category_name||"—")+'</td><td>'+esc(s.class_name||"—")+'</td><td>'+esc(s.option_name||"—")+'</td><td>'+money(paid,"USD")+'</td><td>'+money(remaining,"USD")+'</td><td><span class="tag '+(state==="Soldé"?"green":state==="Non payé"?"red":"")+'">'+state+'</span></td></tr>';
- }).join("");
- $("pageContent").innerHTML=heading("Répertoire financier des élèves","Fiches d’identification et situation des paiements pour l’année active.")+
- '<section class="panel"><div class="panelhead"><div><h2>Fiches élèves</h2><p class="muted">Les fiches sont créées à la caisse lors du premier paiement et réutilisées pour les versements suivants.</p></div><span class="tag">'+esc(data.active_year?.label||"Aucune année active")+'</span></div>'+
+ const data=await api("/api/admin/student-directory");
+ const rows=data.students||[];
+ const studentRows=rows.map(s=>'<tr><td>'+esc(s.student_number||"—")+'</td><td><b>'+esc(s.full_name)+'</b></td><td>'+esc(s.date_of_birth||"—")+'</td><td>'+esc(s.category_name||"—")+'</td><td>'+esc(s.class_name||"—")+'</td><td>'+esc(s.option_name||"—")+'</td></tr>').join("");
+ $("pageContent").innerHTML=heading("Fiches élèves","Répertoire administratif des fiches d’identification. Les encaissements et soldes sont gérés séparément par la caisse.")+
+ '<section class="panel"><div class="panelhead"><div><h2>Répertoire des élèves</h2><p class="muted">Consultation des fiches existantes et de leur rattachement scolaire pour l’année active. Aucun paiement ne peut être enregistré depuis cet écran.</p></div><span class="tag">'+esc(data.active_year?.label||"Toutes les fiches")+'</span></div>'+
  '<div class="toolbar"><input class="search" id="studentSearch" placeholder="Rechercher par nom ou numéro…"><button class="btn secondary" id="searchStudents">Rechercher</button></div>'+
- '<div class="tablewrap"><table class="table"><thead><tr><th>N° élève</th><th>Nom complet</th><th>Section</th><th>Classe</th><th>Option</th><th>Total payé</th><th>Solde restant</th><th>Situation</th></tr></thead><tbody id="studentRows">'+(studentRows||'<tr><td colspan="8" class="empty">Aucune fiche financière pour l’année active.</td></tr>')+'</tbody></table></div></section>';
- $("searchStudents").addEventListener("click",async()=>{const d=await api("/api/students?q="+encodeURIComponent($("studentSearch").value));const found=d.students||[];$("studentRows").innerHTML=found.length?found.map(s=>{const fees=s.fee_balances||[],paid=total(fees,"amount_paid"),remaining=total(fees,"remaining_balance");return '<tr><td>'+esc(s.student_number)+'</td><td><b>'+esc(s.full_name)+'</b></td><td>'+esc(s.category_name||"—")+'</td><td>'+esc(s.class_name||"—")+'</td><td>'+esc(s.option_name||"—")+'</td><td>'+money(paid,"USD")+'</td><td>'+money(remaining,"USD")+'</td><td><span class="tag">'+(remaining<=0?"Soldé":paid>0?"Partiel":"Non payé")+'</span></td></tr>';}).join(""):'<tr><td colspan="8" class="empty">Aucun élève trouvé.</td></tr>';});
- $("studentSearch").addEventListener("keydown",e=>{if(e.key==="Enter")$("searchStudents").click();});
+ '<div class="tablewrap"><table class="table"><thead><tr><th>N° élève</th><th>Nom complet</th><th>Date de naissance</th><th>Section</th><th>Classe</th><th>Option</th></tr></thead><tbody id="studentRows">'+(studentRows||'<tr><td colspan="6" class="empty">Aucune fiche élève enregistrée.</td></tr>')+'</tbody></table></div></section>';
+ const search=async()=>{const d=await api("/api/admin/student-directory?q="+encodeURIComponent($("studentSearch").value));const found=d.students||[];$("studentRows").innerHTML=found.length?found.map(s=>'<tr><td>'+esc(s.student_number||"—")+'</td><td><b>'+esc(s.full_name)+'</b></td><td>'+esc(s.date_of_birth||"—")+'</td><td>'+esc(s.category_name||"—")+'</td><td>'+esc(s.class_name||"—")+'</td><td>'+esc(s.option_name||"—")+'</td></tr>').join(""):'<tr><td colspan="6" class="empty">Aucune fiche correspondante.</td></tr>';};
+ $("searchStudents").addEventListener("click",()=>search().catch(e=>message(e.message,"error")));
+ $("studentSearch").addEventListener("keydown",e=>{if(e.key==="Enter")search().catch(x=>message(x.message,"error"));});
 }
 async function renderPayments(){
  const [d,sd]=await Promise.all([api("/api/payments"),api("/api/students")]);
