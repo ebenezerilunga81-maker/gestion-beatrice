@@ -888,9 +888,10 @@ def get_school_headcounts(
     ).maybe_single().execute().data
     if not year:
         raise HTTPException(status_code=404, detail="Année scolaire introuvable.")
-    total = client.table("school_year_headcounts").select("*").eq(
+    total_rows = client.table("school_year_headcounts").select("*").eq(
         "school_year_id", str(school_year_id)
-    ).maybe_single().execute().data
+    ).limit(1).execute().data or []
+    total = total_rows[0] if total_rows else None
     rows = client.table("school_year_class_headcounts").select(
         "id,school_year_id,class_id,option_id,boys,girls"
     ).eq("school_year_id", str(school_year_id)).execute().data or []
@@ -1113,6 +1114,53 @@ def compare_school_headcounts(
         "by_class": result,
         "note": "Les effectifs proviennent des déclarations de l'établissement. Les élèves payeurs sont comptés à partir des paiements validés.",
     }
+
+
+@app.get("/api/admin/student-directory")
+def admin_student_directory(
+    q: str = "",
+    context=Depends(require_roles("ADMINISTRATEUR", "PREFET", "PROMOTEUR")),
+):
+    """Répertoire d'identification administratif, sans données de caisse."""
+    client = admin_client()
+    students = client.table("students").select(
+        "id,student_number,full_name,date_of_birth,created_at"
+    ).order("full_name").limit(2000).execute().data or []
+    needle = q.strip().casefold()
+    if needle:
+        students = [
+            row for row in students
+            if needle in (row.get("full_name") or "").casefold()
+            or needle in (row.get("student_number") or "").casefold()
+        ]
+    year_rows = client.table("school_years").select(
+        "id,label"
+    ).eq("is_active", True).limit(1).execute().data or []
+    year = year_rows[0] if year_rows else None
+    enrollments = []
+    if year and students:
+        enrollments = client.table("student_enrollments").select(
+            "student_id,category_id,class_id,option_id"
+        ).eq("school_year_id", year["id"]).in_(
+            "student_id", [row["id"] for row in students]
+        ).execute().data or []
+    enrollment_by_student = {row["student_id"]: row for row in enrollments}
+    classes = {row["id"]: row for row in _rows("classes", "id,name,category_id")}
+    categories = {row["id"]: row for row in _rows("categories", "id,name")}
+    options = {row["id"]: row for row in _rows("options", "id,name")}
+    result = []
+    for student in students:
+        enrollment = enrollment_by_student.get(student["id"], {})
+        result.append({
+            "student_number": student.get("student_number"),
+            "full_name": student.get("full_name"),
+            "date_of_birth": student.get("date_of_birth"),
+            "category_name": categories.get(enrollment.get("category_id"), {}).get("name"),
+            "class_name": classes.get(enrollment.get("class_id"), {}).get("name"),
+            "option_name": options.get(enrollment.get("option_id"), {}).get("name"),
+            "school_year_label": year.get("label") if year else None,
+        })
+    return {"students": result, "active_year": year, "total": len(result)}
 
 
 @app.get("/api/students")
