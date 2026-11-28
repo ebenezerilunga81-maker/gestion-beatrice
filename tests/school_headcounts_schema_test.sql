@@ -38,6 +38,16 @@ begin
   ) then
     raise exception 'Contrainte d''unicité classe/option absente';
   end if;
+  if has_table_privilege('anon', 'public.school_year_headcounts', 'select')
+     or has_table_privilege('authenticated', 'public.school_year_headcounts', 'select')
+     or has_table_privilege('anon', 'public.school_year_class_headcounts', 'select')
+     or has_table_privilege('authenticated', 'public.school_year_class_headcounts', 'select') then
+    raise exception 'Accès direct anon/authenticated non révoqué sur les effectifs';
+  end if;
+  if not has_table_privilege('service_role', 'public.school_year_headcounts', 'select')
+     or not has_table_privilege('service_role', 'public.school_year_class_headcounts', 'insert') then
+    raise exception 'Privilèges service_role manquants sur les effectifs';
+  end if;
 end $$;
 
 select
