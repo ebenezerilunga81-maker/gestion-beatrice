@@ -563,19 +563,18 @@ def dashboard(context=Depends(current_profile)):
 
     if role == "CAISSIER":
         # La caisse n'a pas besoin de recalculer les soldes de toute l'école.
-        # Ne charger que le nombre d'élèves de l'année et les recettes de ce caissier.
-        with ThreadPoolExecutor(max_workers=2) as pool:
-            enrollments_future = pool.submit(
-                lambda: client.table("student_enrollments").select("student_id")
-                .eq("school_year_id", year["id"]).execute().data or []
-            )
-            payments_future = pool.submit(
-                lambda: client.table("payments").select("id,amount_paid,currency,amount_usd")
-                .eq("status", "VALIDE").eq("cashier_id", profile["id"])
-                .execute().data or []
-            )
-            cashier_enrollments = enrollments_future.result()
-            cashier_payments = payments_future.result()
+        # Ne charger que les inscriptions de l'année active et les paiements du caissier.
+        cashier_enrollments = client.table("student_enrollments").select(
+            "id,student_id"
+        ).eq("school_year_id", year["id"]).execute().data or []
+        enrollment_ids = [row["id"] for row in cashier_enrollments]
+        cashier_payments = []
+        if enrollment_ids:
+            cashier_payments = client.table("payments").select(
+                "id,amount_paid,currency,amount_usd"
+            ).eq("status", "VALIDE").eq("cashier_id", profile["id"]).in_(
+                "enrollment_id", enrollment_ids
+            ).execute().data or []
 
         revenue_total = sum(
             (payment_amount_usd(payment) for payment in cashier_payments), Decimal("0")
