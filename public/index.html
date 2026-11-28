@@ -452,6 +452,7 @@ if(user.role==="CAISSIER"){
   });
   return;
 }
+const d=await api("/api/dashboard");
 const rev=(d.revenue||[]).map(x=>money(x.amount,x.currency)).join(" · ")||"—";
 $("pageContent").innerHTML=heading("Tableau de bord","Vue générale de l'établissement")+(d.active_year?"":'<div class="notice">Aucune année scolaire n’est encore active. L’administrateur doit créer et ouvrir l’année scolaire avant les inscriptions et les encaissements.</div>')+
 '<div class="cards"><article class="card"><div class="cardtop">Élèves inscrits <span class="cardicon">♙</span></div><div class="value">'+d.students+'</div><div class="sub">Année active</div></article><article class="card"><div class="cardtop">Recettes enregistrées <span class="cardicon">₣</span></div><div class="value" style="font-size:19px">'+esc(rev)+'</div><div class="sub">Versements validés</div></article><article class="card"><div class="cardtop">Paiements <span class="cardicon">▤</span></div><div class="value">'+d.payments+'</div><div class="sub">Opérations visibles selon votre rôle</div></article><article class="card"><div class="cardtop">Année scolaire <span class="cardicon">◷</span></div><div class="value" style="font-size:18px">'+esc(d.active_year?.label||"À configurer")+'</div><div class="sub">Ouverture : premier lundi de septembre</div></article></div>'+
