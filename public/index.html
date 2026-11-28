@@ -346,7 +346,18 @@ function heading(title,sub,action=""){return '<div class="eyebrow">Gestion scola
 function roleAllowed(...roles){return roles.includes(user.role)}
 function showLogin(){ $("loginScreen").classList.remove("hidden");$("app").classList.add("hidden");}
 async function enterApp(){try{refs=await api("/api/references");sessionStorage.setItem("gb_user",JSON.stringify(user));$("loginScreen").classList.add("hidden");$("app").classList.remove("hidden");$("userName").textContent=user.full_name||"Utilisateur";$("userName").parentElement.setAttribute("data-initials",(user.full_name||"GB").trim().split(/\s+/).slice(0,2).map(x=>x[0]).join("").toUpperCase());$("userRole").textContent=roleNames[user.role]||user.role;applyPermissions();await navigate("dashboard");}catch(e){token="";sessionStorage.removeItem("gb_access_token");sessionStorage.removeItem("gb_refresh_token");sessionStorage.removeItem("gb_user");showLogin();$("loginError").textContent=e.message;$("loginError").style.display="block";}}
-function applyPermissions(){if(!roleAllowed("ADMINISTRATEUR")){document.querySelector('[data-page="accounts"]').classList.add("hidden");document.querySelector('[data-page="years"]').classList.add("hidden");document.querySelector('[data-page="tariffs"]').classList.add("hidden");}if(!roleAllowed("ADMINISTRATEUR","PREFET","PROMOTEUR")){document.querySelector('[data-page="decisions"]').classList.add("hidden");}if(user.role==="CAISSIER"){document.querySelector('[data-page="students"]').classList.add("hidden");}}
+function applyPermissions(){
+ if(!roleAllowed("ADMINISTRATEUR")){
+  document.querySelector('[data-page="accounts"]').classList.add("hidden");
+  document.querySelector('[data-page="years"]').classList.add("hidden");
+  document.querySelector('[data-page="tariffs"]').classList.add("hidden");
+ }
+ if(!roleAllowed("ADMINISTRATEUR","PREFET","PROMOTEUR"))document.querySelector('[data-page="headcounts"]').classList.add("hidden");
+ if(user.role==="CAISSIER"){
+  document.querySelector('[data-page="students"]').classList.add("hidden");
+  document.querySelector('[data-page="headcounts"]').classList.add("hidden");
+ }
+}
 async function navigate(p){page=p;document.querySelectorAll("[data-page]").forEach(b=>b.classList.toggle("active",b.dataset.page===p));$("crumbTitle").textContent=titles[p];try{if(p==="dashboard")await renderDashboard();else if(p==="students")await renderStudents();else if(p==="payments")await renderPayments();else if(p==="years")await renderYears();else if(p==="headcounts")await renderHeadcounts();else if(p==="accounts")await renderAccounts();else if(p==="tariffs")await renderTariffs();else if(p==="reports")await renderArchive();else await renderSettings();}catch(e){$("pageContent").innerHTML=heading(titles[p],"")+'<div class="error">'+esc(e.message)+'</div>';}}
 document.querySelectorAll("[data-page]").forEach(b=>b.addEventListener("click",()=>navigate(b.dataset.page)));
 $("loginForm").addEventListener("submit",async e=>{e.preventDefault();const btn=$("loginSubmit"),err=$("loginError");btn.disabled=true;btn.textContent="Connexion…";err.style.display="none";try{const data=await api("/api/auth/login",{method:"POST",body:JSON.stringify({identifier:$("loginIdentifier").value.trim(),password:$("loginPassword").value})});token=data.access_token;user=data.user||{};sessionStorage.setItem("gb_access_token",token);sessionStorage.setItem("gb_refresh_token",data.refresh_token);sessionStorage.setItem("gb_user",JSON.stringify(user));await enterApp();}catch(x){err.textContent=x.message;err.style.display="block";}finally{btn.disabled=false;btn.textContent="Se connecter";}});
