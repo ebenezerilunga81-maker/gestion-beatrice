@@ -971,17 +971,12 @@ def student_payment_history(student_id: UUID, context=Depends(require_roles("CAI
     )), None)
     fee_balances = []
     if active_year:
+        # Les tarifs actuels sont définis par année, catégorie et classe (pas par option).
         active_tariffs = client.table("fee_tariffs").select(
-            "id,fee_type_id,amount,currency,option_id"
+            "id,fee_type_id,amount,currency"
         ).eq("school_year_id", active_year["school_year_id"]).eq(
             "category_id", active_year["category_id"]
         ).eq("class_id", active_year["class_id"]).eq("is_active", True).execute().data or []
-        # Retenir les frais communs et ceux correspondant exactement à l'option de l'élève.
-        active_tariffs = [
-            tariff for tariff in active_tariffs
-            if tariff.get("option_id") is None
-            or tariff.get("option_id") == active_year.get("option_id")
-        ]
         active_payments = [row for row in payments if row["enrollment_id"] == active_year["id"] and row["status"] == "VALIDE"]
         paid_by_tariff = {}
         for row in active_payments:
