@@ -51,7 +51,7 @@ app.add_middleware(
     CORSMiddleware,
     allow_origins=[FRONTEND_ORIGIN],
     allow_credentials=True,
-    allow_methods=["GET", "POST", "PATCH", "DELETE", "OPTIONS"],
+    allow_methods=["GET", "POST", "PUT", "PATCH", "DELETE", "OPTIONS"],
     allow_headers=["Authorization", "Content-Type"],
 )
 
@@ -1672,11 +1672,11 @@ class CancelPaymentInput(BaseModel):
 
 
 @app.post("/api/payments/{payment_id}/cancel")
-def cancel_payment(payment_id: UUID, payload: CancelPaymentInput, context=Depends(require_roles("PROMOTEUR", "PREFET"))):
+def cancel_payment(payment_id: UUID, payload: CancelPaymentInput, context=Depends(require_roles("CAISSIER"))):
     client = admin_client()
     payment = client.table("payments").select("*").eq("id", str(payment_id)).maybe_single().execute().data
-    if not payment:
-        raise HTTPException(status_code=404, detail="Paiement introuvable.")
+    if not payment or payment["cashier_id"] != context["profile"]["id"]:
+        raise HTTPException(status_code=404, detail="Paiement introuvable dans votre caisse.")
     if payment["status"] != "VALIDE":
         raise HTTPException(status_code=409, detail="Ce paiement est déjà annulé.")
     changes = {"status":"ANNULE","annulled_at":datetime.now(timezone.utc).isoformat(),
@@ -1738,6 +1738,13 @@ def archive_records(
         enrollment_query = enrollment_query.eq("student_id", str(student_id))
     enrollments = enrollment_query.execute().data or []
     enrollment_ids = [e["id"] for e in enrollments]
+    if context["profile"]["role"] == "CAISSIER" and enrollment_ids:
+        own_rows = client.table("payments").select("enrollment_id").in_(
+            "enrollment_id", enrollment_ids
+        ).eq("cashier_id", context["profile"]["id"]).execute().data or []
+        own_enrollment_ids = {row["enrollment_id"] for row in own_rows}
+        enrollments = [row for row in enrollments if row["id"] in own_enrollment_ids]
+        enrollment_ids = [row["id"] for row in enrollments]
     if not enrollment_ids:
         return {"school_years": years, "categories": categories, "classes": classes,
                 "options": options, "fee_types": fee_types, "students": [], "payments": []}
@@ -1754,9 +1761,12 @@ def archive_records(
         "school_year_id", str(school_year_id)
     ).execute().data or []
     tariff_map = {t["id"]: t for t in tariffs}
-    payments = client.table("payments").select("*").in_(
+    payments_query = client.table("payments").select("*").in_(
         "enrollment_id", enrollment_ids
-    ).order("payment_date", desc=True).execute().data or []
+    ).order("payment_date", desc=True)
+    if context["profile"]["role"] == "CAISSIER":
+        payments_query = payments_query.eq("cashier_id", context["profile"]["id"])
+    payments = payments_query.execute().data or []
     tickets = client.table("tickets").select("payment_id,ticket_number").in_(
         "payment_id", [p["id"] for p in payments]
     ).execute().data if payments else []
@@ -1800,10 +1810,13 @@ def archive_records(
 
 
 @app.get("/api/reports/summary")
-def report_summary(context=Depends(require_roles("ADMINISTRATEUR", "PREFET", "PROMOTEUR"))):
+def report_summary(context=Depends(require_roles("ADMINISTRATEUR", "PREFET", "PROMOTEUR", "CAISSIER"))):
     client = admin_client()
     years = client.table("school_years").select("*").order("start_date", desc=True).execute().data or []
-    payments = client.table("payments").select("*").order("payment_date", desc=True).limit(2000).execute().data or []
+    payments_query = client.table("payments").select("*").order("payment_date", desc=True).limit(2000)
+    if context["profile"]["role"] == "CAISSIER":
+        payments_query = payments_query.eq("cashier_id", context["profile"]["id"])
+    payments = payments_query.execute().data or []
     valid = [p for p in payments if p["status"] == "VALIDE"]
     total_usd = sum((payment_amount_usd(p) for p in valid), Decimal("0"))
     unconverted_legacy = sum(
