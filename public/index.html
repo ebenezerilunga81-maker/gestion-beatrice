@@ -64,7 +64,7 @@ $("loginForm").addEventListener("submit",async e=>{e.preventDefault();const btn=
 $("logoutBtn").addEventListener("click",()=>{token="";sessionStorage.clear();location.reload()});
 async function renderDashboard(){
 if(user.role==="CAISSIER"){
-  const [d,p]=await Promise.all([api("/api/dashboard"),api("/api/payments")]);
+  const [d,p]=await Promise.all([api("/api/dashboard"),api("/api/payments?limit=8")]);
   const revenue=(d.revenue||[]).map(x=>money(x.amount,x.currency)).join(" · ")||"0";
   $("pageContent").innerHTML=heading("Espace caisse","Tableau de bord du caissier — "+esc(d.active_year?.label||"Aucune année active"))+
   (!d.active_year?'<div class="notice">Aucune année scolaire active. Les encaissements sont suspendus jusqu’à l’ouverture de l’année par l’administrateur.</div>':'')+
