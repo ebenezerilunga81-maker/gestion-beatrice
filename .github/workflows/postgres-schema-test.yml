@@ -49,6 +49,8 @@ jobs:
         run: psql -v ON_ERROR_STOP=1 -f database/schema_v1_corrige.sql
       - name: Apply additive migrations in disposable PostgreSQL
         run: psql -v ON_ERROR_STOP=1 -f database/migrations/202611280001_school_year_headcounts.sql
+      - name: Restrict direct API access to headcount tables
+        run: psql -v ON_ERROR_STOP=1 -f database/migrations/202611280002_restrict_headcounts_api_access.sql
       - name: Run structural smoke tests
         run: |
           psql -v ON_ERROR_STOP=1 -f tests/schema_smoke_tests.sql
