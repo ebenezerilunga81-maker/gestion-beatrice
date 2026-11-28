@@ -304,6 +304,16 @@ canvas,svg{max-width:100%}
  .topbar .crumb b{font-size:15px}
 }
 
+
+/* Effectifs scolaires : cartes de synthèse et saisie protégée */
+.headcount-summary{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:16px;margin:4px 0 22px}
+.headcount-stat{min-height:142px;padding:20px 22px;border:1px solid #dce7f3;border-radius:14px;display:flex;flex-direction:column;justify-content:center;gap:7px;box-shadow:0 7px 20px #173b650d;position:relative;overflow:hidden}
+.headcount-stat:after{content:"";position:absolute;width:100px;height:100px;border-radius:50%;right:-28px;top:-32px;background:#ffffff70}
+.headcount-stat span{font-size:12px;font-weight:750;letter-spacing:.02em;color:#35516f}.headcount-stat strong{font-size:36px;line-height:1.1;font-weight:850;letter-spacing:-.04em;color:#173a60;font-variant-numeric:tabular-nums}.headcount-stat small{font-size:11px;color:#5e7691}
+.headcount-stat-total{background:linear-gradient(135deg,#e7f1ff,#d5e7fc);border-color:#c9def6}.headcount-stat-boys{background:linear-gradient(135deg,#eaf6ff,#dceefa);border-color:#d1e6f5}.headcount-stat-girls{background:linear-gradient(135deg,#f3edff,#e8e0fb);border-color:#e1d7f6}
+.headcount-actions{display:flex;justify-content:space-between;align-items:center;gap:14px;margin-top:18px;padding:15px 16px;border:1px solid #e0e8f1;border-radius:10px;background:#f7f9fc}.headcount-actions>div{display:flex;gap:9px;flex-wrap:wrap}
+#headcountForm input:disabled{background:#f0f3f7;color:#68788b;border-color:#e1e7ee;cursor:not-allowed;opacity:1}#headcountForm .table td{vertical-align:middle}#headcountForm .hc-boys,#headcountForm .hc-girls{width:105px!important;min-height:38px;text-align:center;font-weight:650;font-variant-numeric:tabular-nums}#headcountForm .hc-total{font-weight:800;color:#1d5d98;background:#f0f6fd;font-variant-numeric:tabular-nums}
+@media(max-width:760px){.headcount-summary{grid-template-columns:1fr;gap:10px}.headcount-stat{min-height:112px;padding:16px 19px}.headcount-stat strong{font-size:31px}.headcount-actions{align-items:flex-start;flex-direction:column}.headcount-actions>div{width:100%}.headcount-actions .btn{flex:1}}
 </style>
 </head>
 <body>
@@ -690,14 +700,11 @@ async function renderHeadcounts(){
  $("pageContent").innerHTML=heading("Effectifs scolaires","Effectifs déclarés par l’établissement — indépendants des paiements.")+
  '<section class="panel"><form id="headcountForm"><div class="formgrid">'+
  '<label class="field"><span>Année scolaire</span><select id="headcountYear" required>'+yearOptions+'</select></label>'+
- '<label class="field"><span>Effectif total de l’établissement</span><input id="hcTotal" type="number" min="0" value="0" readonly required></label>'+
- '<label class="field"><span>Total des garçons</span><input id="hcBoys" type="number" min="0" value="0" readonly required></label>'+
- '<label class="field"><span>Total des filles</span><input id="hcGirls" type="number" min="0" value="0" readonly required></label>'+
- '<label class="field full"><span>Observations (facultatif)</span><input id="hcNotes" maxlength="1000"></label></div>'+
+ '<div class="headcount-summary field full"><div class="headcount-stat headcount-stat-total"><span>Effectif général</span><strong id="hcTotal">0</strong><small>Total garçons + filles</small></div><div class="headcount-stat headcount-stat-boys"><span>Total des garçons</span><strong id="hcBoys">0</strong><small>Effectif masculin</small></div><div class="headcount-stat headcount-stat-girls"><span>Total des filles</span><strong id="hcGirls">0</strong><small>Effectif féminin</small></div></div><label class="field full"><span>Observations (facultatif)</span><input id="hcNotes" maxlength="1000"></label></div>'+
  '<div class="panelhead"><h2>Ventilation par classe et option</h2><p class="muted">Renseignez les garçons et les filles pour chaque ligne.</p></div>'+
  '<div class="tablewrap"><table class="table"><thead><tr><th>Section</th><th>Classe</th><th>Option</th><th>Garçons</th><th>Filles</th><th>Total</th></tr></thead><tbody>'+
  rows.map(r=>'<tr data-class="'+r.cls.id+'" data-option="'+(r.opt?.id||'')+'"><td>'+esc((refs.categories||[]).find(c=>c.id===r.cls.category_id)?.name||'')+'</td><td>'+esc(r.cls.name)+'</td><td>'+esc(r.opt?.name||'—')+'</td><td><input class="hc-boys" type="number" min="0" value="0" style="width:90px"></td><td><input class="hc-girls" type="number" min="0" value="0" style="width:90px"></td><td class="hc-total">0</td></tr>').join("")+
- '</tbody></table></div><div class="toolbar" style="justify-content:flex-end;margin-top:16px"><button class="btn" type="submit">Enregistrer les effectifs</button></div></form></section>';
+ '</tbody></table></div><div class="headcount-actions"><span id="headcountEditHint" class="muted">Les effectifs enregistrés sont protégés contre les modifications accidentelles.</span><div><button class="btn secondary hidden" id="editHeadcounts" type="button">Modifier les effectifs</button><button class="btn" id="saveHeadcounts" type="submit">Enregistrer les effectifs</button></div></div></form></section>';
  const load=async()=>{
   const id=$("headcountYear").value;if(!id)return;
   const d=await api("/api/admin/headcounts?school_year_id="+encodeURIComponent(id));
@@ -705,7 +712,14 @@ async function renderHeadcounts(){
   const saved=new Map((d.classes||[]).map(x=>[x.class_id+":"+(x.option_id||""),x]));
   document.querySelectorAll("#headcountForm tbody tr").forEach(tr=>{const x=saved.get(tr.dataset.class+":"+tr.dataset.option);tr.querySelector(".hc-boys").value=x?.boys??0;tr.querySelector(".hc-girls").value=x?.girls??0;});
   updateHeadcountTotals();
+  setHeadcountLocked(Boolean(d.headcount));
  };
+ function setHeadcountLocked(locked){
+  document.querySelectorAll("#headcountForm .hc-boys,#headcountForm .hc-girls,#headcountForm #hcNotes").forEach(el=>el.disabled=locked);
+  $("saveHeadcounts").classList.toggle("hidden",locked);
+  $("editHeadcounts").classList.toggle("hidden",!locked);
+  $("headcountEditHint").textContent=locked?"Effectifs enregistrés et verrouillés. Cliquez sur « Modifier les effectifs » pour effectuer un changement.":"Mode modification activé. Enregistrez pour verrouiller à nouveau les effectifs.";
+ }
  function updateHeadcountTotals(){
   let boys=0,girls=0;
   document.querySelectorAll("#headcountForm tbody tr").forEach(tr=>{
@@ -714,14 +728,15 @@ async function renderHeadcounts(){
    boys+=rowBoys;girls+=rowGirls;
    tr.querySelector(".hc-total").textContent=String(rowBoys+rowGirls);
   });
-  $("hcBoys").value=String(boys);
-  $("hcGirls").value=String(girls);
-  $("hcTotal").value=String(boys+girls);
+  $("hcBoys").textContent=String(boys);
+  $("hcGirls").textContent=String(girls);
+  $("hcTotal").textContent=String(boys+girls);
  }
  document.querySelectorAll(".hc-boys,.hc-girls").forEach(input=>input.addEventListener("input",updateHeadcountTotals));
  updateHeadcountTotals();
  $("headcountYear").addEventListener("change",()=>load().catch(e=>message(e.message,"error")));
- $("headcountForm").addEventListener("submit",async e=>{e.preventDefault();const classes=[...document.querySelectorAll("#headcountForm tbody tr")].map(tr=>({class_id:Number(tr.dataset.class),option_id:tr.dataset.option?Number(tr.dataset.option):null,boys:Number(tr.querySelector(".hc-boys").value||0),girls:Number(tr.querySelector(".hc-girls").value||0)}));updateHeadcountTotals();const body={school_year_id:$("headcountYear").value,total_students:Number($("hcTotal").value),total_boys:Number($("hcBoys").value),total_girls:Number($("hcGirls").value),notes:$("hcNotes").value||null,classes};try{await api("/api/admin/headcounts",{method:"PUT",body:JSON.stringify(body)});message("Effectifs enregistrés pour l’année sélectionnée.");}catch(x){message(x.message,"error");}});
+ $("headcountForm").addEventListener("submit",async e=>{e.preventDefault();const classes=[...document.querySelectorAll("#headcountForm tbody tr")].map(tr=>({class_id:Number(tr.dataset.class),option_id:tr.dataset.option?Number(tr.dataset.option):null,boys:Number(tr.querySelector(".hc-boys").value||0),girls:Number(tr.querySelector(".hc-girls").value||0)}));updateHeadcountTotals();const body={school_year_id:$("headcountYear").value,total_students:Number($("hcTotal").textContent),total_boys:Number($("hcBoys").textContent),total_girls:Number($("hcGirls").textContent),notes:$("hcNotes").value||null,classes};try{await api("/api/admin/headcounts",{method:"PUT",body:JSON.stringify(body)});message("Effectifs enregistrés pour l’année sélectionnée.");setHeadcountLocked(true);}catch(x){message(x.message,"error");}});
+ $("editHeadcounts").addEventListener("click",()=>setHeadcountLocked(false));
  $("pageContent").insertAdjacentHTML("beforeend",'<section class="panel"><div class="panelhead"><div><h2>Comparaison financière</h2><p class="muted">Effectifs déclarés, élèves ayant payé, montants attendus et recettes encaissées.</p></div><button class="btn secondary" id="loadHeadcountComparison">Afficher la comparaison</button></div><div id="headcountComparison"><div class="empty">Choisissez une année puis affichez la comparaison.</div></div></section>');
  $("loadHeadcountComparison").addEventListener("click",async()=>{
   const box=$("headcountComparison");box.innerHTML='<div class="empty">Calcul de la comparaison…</div>';
@@ -734,7 +749,7 @@ async function renderHeadcounts(){
    box.innerHTML=cards+'<h3>Résumé par section</h3><div class="tablewrap"><table class="table"><thead><tr><th>Section</th><th>Effectif</th><th>Garçons</th><th>Filles</th><th>Ayant payé</th><th>Attendu</th><th>Encaissé</th><th>Solde</th></tr></thead><tbody>'+(categoryRows||'<tr><td colspan="8" class="empty">Aucune donnée.</td></tr>')+'</tbody></table></div><h3 style="margin-top:20px">Détail par classe</h3><div class="tablewrap"><table class="table"><thead><tr><th>Section</th><th>Classe</th><th>Effectif</th><th>Garçons</th><th>Filles</th><th>Ayant payé</th><th>Attendu</th><th>Encaissé</th><th>Solde</th></tr></thead><tbody>'+(classRows||'<tr><td colspan="9" class="empty">Aucune donnée.</td></tr>')+'</tbody></table></div><p class="muted" style="margin-top:12px">'+esc(d.note||"")+'</p>';
   }catch(x){box.innerHTML='<div class="error">'+esc(x.message)+'</div>';}
  });
- if(user.role!=="ADMINISTRATEUR"){$("headcountForm").querySelectorAll("input,button").forEach(el=>el.disabled=true);$("headcountForm").querySelector("#headcountYear").disabled=false;$("loadHeadcountComparison").disabled=false;}
+ if(user.role!=="ADMINISTRATEUR"){$("headcountForm").querySelectorAll("input,button").forEach(el=>el.disabled=true);$("headcountForm").querySelector("#headcountYear").disabled=false;$("loadHeadcountComparison").disabled=false;$("editHeadcounts").classList.add("hidden");$("saveHeadcounts").classList.add("hidden");}
  await load();
 }
 async function renderYears(){const d=await api("/api/admin/school-years");$("pageContent").innerHTML=heading("Années scolaires","Les dates sont calculées automatiquement selon le calendrier scolaire officiel.")+'<section class="panel"><div class="panelhead"><h2>Créer une année scolaire</h2></div><form id="yearForm" class="formgrid"><label class="field"><span>Année scolaire *</span><input name="label" placeholder="2026-2027" pattern="[0-9]{4}-[0-9]{4}" maxlength="9" required></label><div class="field full notice" id="yearDatePreview">Saisissez une année au format AAAA-AAAA pour afficher automatiquement les dates.</div><label class="field"><span><input type="checkbox" name="activate" value="true"> Activer dès la création</span></label><div class="field full"><button class="btn">Créer l’année scolaire et copier les tarifs de référence</button></div></form></section><section class="panel"><div class="panelhead"><h2>Années enregistrées</h2></div><div class="tablewrap"><table class="table"><thead><tr><th>Année</th><th>Début</th><th>Fin</th><th>Rentrée</th><th>Statut</th><th>Action</th></tr></thead><tbody>'+((d.school_years||[]).map(y=>'<tr><td>'+esc(y.label)+'</td><td>'+esc(y.start_date)+'</td><td>'+esc(y.end_date)+'</td><td>'+esc(y.opening_date)+'</td><td><span class="tag '+(y.is_active?'green':'')+'">'+(y.is_active?'Active':'Archive')+'</span></td><td>'+(y.is_active?'—':'<button class="btn secondary activateYear" data-id="'+y.id+'">Activer</button>')+'</td></tr>').join("")||'<tr><td colspan="6" class="empty">Aucune année créée.</td></tr>')+'</tbody></table></div></section>';
