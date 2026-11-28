@@ -92,6 +92,192 @@ canvas,svg{max-width:100%}
 .student-history-modal{position:fixed;inset:0;z-index:1100;display:flex;align-items:center;justify-content:center;padding:24px;background:#0b173b99}.student-history-dialog{width:min(1180px,96vw);max-height:88vh;overflow:auto;margin:0;box-shadow:0 24px 70px #0004}.student-history-dialog>.panelhead{position:sticky;top:-1px;z-index:2;padding:8px 0;background:#fff}.student-history-dialog .tablewrap{max-height:52vh;overflow:auto}.student-history-dialog .table{min-width:850px}.student-history-dialog .dashboard-search-history{margin:0;padding:0;border:0}.cashier-analytics-grid{display:grid;grid-template-columns:minmax(0,1.4fr) minmax(300px,.9fr);gap:16px;align-items:start;margin-bottom:16px}.cashier-class-panel{min-width:0}.cashier-class-table{min-width:620px}.cashier-class-table th{background:#eaf3fd;color:#315b86}.cashier-class-table tbody tr{transition:background .2s ease,box-shadow .2s ease}.cashier-class-table tbody tr:nth-child(even){background:#f7faff}.cashier-class-table tbody tr:hover{background:#e7f1fd;box-shadow:inset 3px 0 #4e8ac7}.cashier-class-row{cursor:pointer}.cashier-class-row:focus{outline:2px solid #4e8ac7;outline-offset:-2px}.class-click-hint{padding:10px 2px 0;color:#718096;font-size:11px}.class-paid-dialog{width:min(1180px,96vw);max-height:90vh;overflow:auto;margin:0;box-shadow:0 24px 70px #0004}.class-paid-dialog>.panelhead{position:sticky;top:-1px;z-index:2;padding:8px 0;background:#fff}.class-paid-dialog .panelhead h2{margin:0}.class-paid-content{min-height:80px}.class-paid-table{min-width:900px}.class-paid-table th{background:#eaf3fd;color:#315b86}.class-paid-table td{vertical-align:middle}.class-paid-summary{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:12px;margin:10px 0 16px}.class-paid-summary article{display:grid;gap:5px;padding:12px 14px;border:1px solid #e5ebf2;border-radius:10px;background:#f8fafd}.class-paid-summary span{font-size:11px;color:#718096}.class-paid-summary b{font-size:17px;color:#183d67}.class-paid-actions{display:flex;justify-content:flex-end;padding-top:14px;margin-top:12px;border-top:1px solid #e5ebf2}.tag.amber{background:#fff4db;color:#98650b}.cashier-side-analytics{display:grid;gap:0}.cashier-side-analytics .panel{min-width:0}.class-bars{display:grid;gap:15px}.class-bar-row>div:first-child{display:flex;justify-content:space-between;gap:10px;margin-bottom:6px;font-size:11px;color:#365675}.class-bar-row span{font-variant-numeric:tabular-nums;font-weight:750;color:#245f9e}.class-bar-track{height:9px;border-radius:20px;background:#e7eff8;overflow:hidden}.class-bar-track i{display:block;height:100%;border-radius:20px;background:linear-gradient(90deg,#8ab7e5,#2463a6);transition:width .65s cubic-bezier(.2,.7,.2,1)}.cashier-analytics-grid .panel{box-shadow:0 3px 12px #1b4b7b0b}.cashier-analytics-grid .table td,.cashier-analytics-grid .table th{padding:11px 12px}.cashier-analytics-grid .table tbody tr{transition:background .18s ease}.cashier-analytics-grid .table tbody tr:hover{background:#eaf3fd}
 @media(max-width:1100px){.cashier-analytics-grid{grid-template-columns:1fr}.cashier-side-analytics{grid-template-columns:1fr 1fr;gap:14px}}
 @media(max-width:700px){.side-logout{margin:0;padding:12px 10px 10px;width:auto;min-width:140px}.cashier-side-analytics{grid-template-columns:1fr}.cashier-analytics-grid{gap:8px}.cashier-search-panel{padding:14px}.cashier-search-panel .panelhead{align-items:flex-start}.cashier-class-panel{padding:13px}.class-paid-summary{grid-template-columns:1fr}.class-paid-dialog{width:98vw;padding:12px}}
+
+/* Raffinement visuel — formulaires de paiement et dossier élève */
+.payment-panel{
+  max-width:1020px;
+  margin:8px auto 28px;
+  padding:28px 34px 30px;
+  border-top:4px solid #2463a6;
+  border-radius:16px;
+  box-shadow:0 12px 34px #183b6212;
+}
+.payment-panel>.panelhead{
+  justify-content:center;
+  text-align:center;
+  padding-bottom:19px;
+  margin-bottom:24px;
+}
+.payment-panel>.panelhead>div{max-width:650px}
+.payment-panel>.panelhead h2{font-size:21px;letter-spacing:-.025em}
+.payment-panel>.panelhead p{margin:6px 0 0;line-height:1.6}
+.payment-panel>.panelhead>.tag{align-self:center}
+.payment-form{
+  max-width:830px;
+  margin:0 auto;
+  gap:17px 22px;
+  align-items:end;
+}
+.payment-form .field{min-width:0}
+.payment-form .field>span{
+  margin-bottom:8px;
+  font-size:12px;
+  letter-spacing:.01em;
+}
+.payment-form input,.payment-form select{
+  min-height:48px;
+  border:1px solid #d5e0ec;
+  border-radius:10px;
+  background:#fcfdff;
+}
+.payment-form input:hover,.payment-form select:hover{border-color:#b9cce0}
+.payment-form #studentSearch{max-width:100%;background:#fff}
+.payment-form #studentSuggestions{
+  justify-content:center;
+  margin-top:-9px;
+  padding:2px 4px 5px;
+}
+.payment-form #studentSuggestions .btn{
+  border-radius:24px;
+  padding:9px 14px;
+  background:#f4f8fd;
+  border-color:#d8e5f3;
+  color:#245b91;
+}
+.payment-form #studentSuggestions .btn:hover{
+  background:#eaf3fc;
+  border-color:#a9c6e4;
+}
+.payment-form #studentSelected{
+  display:flex;
+  align-items:center;
+  justify-content:center;
+  text-align:center;
+  max-width:830px;
+  min-height:58px;
+  padding:15px 20px;
+  border:1px solid #d7e6f5;
+  border-left:4px solid #3979b8;
+  border-radius:11px;
+  background:linear-gradient(110deg,#f1f7fe,#f9fbfe);
+  line-height:1.6;
+}
+.payment-form #paymentStudentDetails{
+  max-width:830px;
+  width:100%;
+  margin:0 auto;
+  padding:20px 22px 8px;
+  border:1px solid #e0e9f2;
+  border-radius:13px;
+  background:#f8fafd;
+}
+.payment-form .payment-student-grid{gap:14px 18px}
+.payment-form #paymentFee,.payment-form #paymentBalanceHint{
+  max-width:830px;
+  margin-left:auto;
+  margin-right:auto;
+}
+.payment-form #paymentBalanceHint{
+  text-align:center;
+  padding:16px 20px;
+  border-radius:11px;
+  line-height:1.75;
+  box-shadow:inset 0 0 0 1px #ffffff90;
+}
+.payment-form #paymentAmount{
+  font-size:20px;
+  font-weight:800;
+  letter-spacing:.01em;
+  background:#fff;
+}
+.payment-form button[type=submit]{
+  display:block;
+  width:min(430px,100%);
+  min-height:52px;
+  margin:5px auto 0;
+  border-radius:10px;
+  font-size:13px;
+  letter-spacing:.015em;
+  box-shadow:0 7px 18px #2463a626;
+}
+.student-history-modal{
+  padding:28px;
+  background:#091b32b8;
+  backdrop-filter:blur(5px);
+}
+.student-history-dialog{
+  width:min(1160px,96vw);
+  max-height:90vh;
+  padding:26px 30px 30px;
+  border:1px solid #dce6f0;
+  border-radius:17px;
+  box-shadow:0 28px 85px #06172d55;
+}
+.student-history-dialog>.panelhead{
+  top:-1px;
+  display:flex;
+  align-items:center;
+  justify-content:space-between;
+  padding:5px 0 17px;
+  margin-bottom:18px;
+  border-bottom:1px solid #e8edf3;
+}
+.student-history-dialog>.panelhead h2{
+  font-size:19px;
+  letter-spacing:-.02em;
+  color:#183654;
+}
+.dashboard-search-history>.panelhead{
+  align-items:center;
+  padding:16px 18px;
+  margin:0 0 18px;
+  border:1px solid #e1eaf3;
+  border-left:4px solid #3979b8;
+  border-radius:12px;
+  background:linear-gradient(110deg,#f3f8fe,#fff);
+}
+.dashboard-search-history>.panelhead h3{
+  font-size:18px!important;
+  color:#173b60;
+}
+.dashboard-search-history>.panelhead .muted{margin-top:5px}
+.dashboard-search-history>h3{
+  margin:22px 0 10px!important;
+  padding-left:2px;
+  color:#24496e;
+  font-size:13px!important;
+}
+.dashboard-search-history .tablewrap{
+  margin-bottom:18px;
+  border-radius:11px;
+  box-shadow:0 3px 12px #19385b08;
+}
+.dashboard-search-history .table{
+  min-width:850px;
+}
+.dashboard-search-history .table th{
+  padding-top:13px;
+  padding-bottom:13px;
+  background:#edf4fb;
+  color:#345b83;
+}
+.dashboard-search-history .table td{padding-top:13px;padding-bottom:13px}
+.dashboard-search-history .table td b{color:#173b60}
+@media(max-width:700px){
+  .payment-panel{padding:18px 14px 20px;margin-top:0}
+  .payment-panel>.panelhead{align-items:center;flex-direction:column}
+  .payment-form{grid-template-columns:1fr;gap:13px}
+  .payment-form .field.full{grid-column:1}
+  .payment-form #paymentStudentDetails{padding:14px 12px 4px}
+  .payment-form .payment-student-grid{grid-template-columns:1fr}
+  .payment-form #studentSelected{text-align:left;justify-content:flex-start}
+  .payment-form button[type=submit]{width:100%}
+  .student-history-modal{padding:10px}
+  .student-history-dialog{width:100%;max-height:94vh;padding:16px 13px 18px}
+  .student-history-dialog>.panelhead h2{font-size:16px}
+  .dashboard-search-history>.panelhead{padding:13px}
+}
+
 </style>
 </head>
 <body>
