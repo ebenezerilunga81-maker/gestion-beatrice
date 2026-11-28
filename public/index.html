@@ -361,15 +361,15 @@ function applyPermissions(){
  const admin=user.role==="ADMINISTRATEUR";
  const cashier=user.role==="CAISSIER";
  const show=(pageName,visible)=>document.querySelector('[data-page="'+pageName+'"]')?.classList.toggle("hidden",!visible);
- show("payments",cashier); show("students",!cashier); show("headcounts",true);
- show("reports",!cashier); show("accounts",admin); show("years",admin);
+ show("payments",true); show("students",!cashier); show("headcounts",true);
+ show("reports",true); show("accounts",admin); show("years",admin);
  show("tariffs",admin); show("settings",admin);
 }
 async function navigate(p){
- const allowed={payments:user.role==="CAISSIER",students:user.role!=="CAISSIER",headcounts:true,reports:user.role!=="CAISSIER",accounts:user.role==="ADMINISTRATEUR",years:user.role==="ADMINISTRATEUR",tariffs:user.role==="ADMINISTRATEUR",settings:user.role==="ADMINISTRATEUR"};
+ const allowed={payments:true,students:user.role!=="CAISSIER",headcounts:true,reports:true,accounts:user.role==="ADMINISTRATEUR",years:user.role==="ADMINISTRATEUR",tariffs:user.role==="ADMINISTRATEUR",settings:user.role==="ADMINISTRATEUR"};
  if(allowed[p]===false)p="dashboard";
  page=p;document.querySelectorAll("[data-page]").forEach(b=>b.classList.toggle("active",b.dataset.page===p));$("crumbTitle").textContent=titles[p];
- try{if(p==="dashboard")await renderDashboard();else if(p==="students")await renderStudents();else if(p==="payments")await renderPayments();else if(p==="years")await renderYears();else if(p==="headcounts")await renderHeadcounts();else if(p==="accounts")await renderAccounts();else if(p==="tariffs")await renderTariffs();else if(p==="reports")await renderArchive();else await renderSettings();}
+ try{if(p==="dashboard")await renderDashboard();else if(p==="students")await renderStudents();else if(p==="payments")await renderPayments();else if(p==="years")await renderYears();else if(p==="headcounts")await renderHeadcounts();else if(p==="accounts")await renderAccounts();else if(p==="tariffs")await renderTariffs();else if(p==="reports"){if(user.role==="CAISSIER")await renderReports();else await renderArchive();}else await renderSettings();}
  catch(e){$("pageContent").innerHTML=heading(titles[p],"")+'<div class="error">'+esc(e.message)+'</div>';}
 }
 document.querySelectorAll("[data-page]").forEach(b=>b.addEventListener("click",()=>navigate(b.dataset.page)));
@@ -517,8 +517,9 @@ async function renderStudents(){
  $("studentSearch").addEventListener("keydown",e=>{if(e.key==="Enter")search().catch(x=>message(x.message,"error"));});
 }
 async function renderPayments(){
- const [d,sd]=await Promise.all([api("/api/payments"),api("/api/students")]);
  const isCashier=user.role==="CAISSIER";
+ const d=await api("/api/payments");
+ const sd=isCashier?await api("/api/students"):{students:[]};
  let selectedStudent=null,currentFees=[];
  const feeTypeName=id=>(refs.fee_types||[]).find(x=>String(x.id)===String(id))?.name||"Frais";
  const feeLabel=f=>Number(f.amount_paid)>0?esc(f.fee_type_name)+" — SOLDE : "+money(f.remaining_balance,"USD")+" (dû "+money(f.amount_due,"USD")+", déjà payé "+money(f.amount_paid,"USD")+")":esc(f.fee_type_name)+" — dû "+money(f.amount_due,"USD")+", payé 0 USD, reste "+money(f.remaining_balance,"USD");
