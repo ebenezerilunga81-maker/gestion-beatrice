@@ -531,11 +531,9 @@ def references(context=Depends(current_profile)):
     active = next((year for year in years if year.get("is_active")), None)
     tariffs = []
     if active:
-        tariffs = load(
-            "fee_tariffs",
+        tariffs = admin_client().table("fee_tariffs").select(
             "id,school_year_id,fee_type_id,category_id,class_id,amount,currency,is_active"
-        )
-        tariffs = [row for row in tariffs if row.get("school_year_id") == active["id"]]
+        ).eq("school_year_id", active["id"]).execute().data or []
     return {
         "categories": categories,
         "classes": classes,
