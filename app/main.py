@@ -591,6 +591,7 @@ def dashboard(context=Depends(current_profile)):
         for enrollment in all_enrollments:
             cid = enrollment["class_id"]
             class_stats.setdefault(cid, {
+                "class_id": cid,
                 "class_name": class_names.get(cid, "Classe"),
                 "students_paid": set(), "paid": Decimal("0")
             })
@@ -606,6 +607,7 @@ def dashboard(context=Depends(current_profile)):
                 continue
             cid = enrollment["class_id"]
             stat = class_stats.setdefault(cid, {
+                "class_id": cid,
                 "class_name": class_names.get(cid, "Classe"),
                 "students_paid": set(), "paid": Decimal("0")
             })
@@ -614,14 +616,20 @@ def dashboard(context=Depends(current_profile)):
         class_summary = []
         for stat in class_stats.values():
             class_summary.append({
+                "class_id": stat["class_id"],
                 "class_name": stat["class_name"],
                 "students_paid": len(stat["students_paid"]),
                 "paid_usd": str(stat["paid"]),
             })
         class_summary.sort(key=lambda row: row["class_name"])
+        paid_student_ids = {
+            enrollment_map[payment["enrollment_id"]]["student_id"]
+            for payment in all_class_payments
+            if payment.get("enrollment_id") in enrollment_map
+        }
         return {
             "active_year": year,
-            "students": len({row["student_id"] for row in cashier_enrollments}),
+            "students": len(paid_student_ids),
             "payments": len(cashier_payments),
             "revenue": [{"currency": "USD", "amount": str(revenue_total)}] if cashier_payments else [],
             "balances": [],
@@ -673,6 +681,117 @@ def dashboard(context=Depends(current_profile)):
         "balances": [{"currency": k, "amount": str(v)} for k, v in balances_by_currency.items()],
         "recent_payments": sorted(visible_payments, key=lambda p: p["payment_date"], reverse=True)[:8],
     }
+
+
+@app.get("/api/dashboard/classes/{class_id}/paid-students")
+def paid_students_by_class(class_id: int, context=Depends(require_roles("CAISSIER"))):
+    """Liste les élèves de la classe ayant au moins un paiement validé pour l'année active."""
+    client = admin_client()
+    year_rows = client.table("school_years").select("id,label").eq(
+        "is_active", True
+    ).limit(1).execute()
+    year = year_rows.data[0] if year_rows and year_rows.data else None
+    if not year:
+        raise HTTPException(status_code=409, detail="Aucune année scolaire active.")
+
+    class_row = client.table("classes").select("id,name").eq(
+        "id", class_id
+    ).maybe_single().execute().data
+    if not class_row:
+        raise HTTPException(status_code=404, detail="Classe introuvable.")
+
+    enrollments = client.table("student_enrollments").select(
+        "id,student_id,class_id,option_id"
+    ).eq("school_year_id", year["id"]).eq("class_id", class_id).execute().data or []
+    if not enrollments:
+        return {
+            "class_id": class_id, "class_name": class_row["name"],
+            "school_year_label": year["label"], "students": [],
+            "total_paid_usd": "0.00", "total_due_usd": "0.00",
+            "total_remaining_usd": "0.00",
+        }
+
+    enrollment_ids = [row["id"] for row in enrollments]
+    payments = client.table("payments").select(
+        "enrollment_id,amount_paid,currency,amount_usd"
+    ).eq("status", "VALIDE").in_("enrollment_id", enrollment_ids).execute().data or []
+    paid_by_enrollment = {}
+    for payment in payments:
+        key = payment["enrollment_id"]
+        paid_by_enrollment[key] = paid_by_enrollment.get(key, Decimal("0")) + payment_amount_usd(payment)
+
+    paid_enrollments = [
+        row for row in enrollments
+        if paid_by_enrollment.get(row["id"], Decimal("0")) > 0
+        or any(p["enrollment_id"] == row["id"] for p in payments)
+    ]
+    if not paid_enrollments:
+        return {
+            "class_id": class_id, "class_name": class_row["name"],
+            "school_year_label": year["label"], "students": [],
+            "total_paid_usd": "0.00", "total_due_usd": "0.00",
+            "total_remaining_usd": "0.00",
+        }
+
+    student_ids = list({row["student_id"] for row in paid_enrollments})
+    students = client.table("students").select(
+        "id,full_name,student_number"
+    ).in_("id", student_ids).execute().data or []
+    student_map = {row["id"]: row for row in students}
+
+    option_ids = list({row["option_id"] for row in paid_enrollments if row.get("option_id")})
+    options = client.table("options").select("id,name").in_(
+        "id", option_ids
+    ).execute().data if option_ids else []
+    option_map = {row["id"]: row["name"] for row in (options or [])}
+
+    tariffs = client.table("fee_tariffs").select(
+        "id,amount,currency"
+    ).eq("school_year_id", year["id"]).eq("class_id", class_id).eq(
+        "is_active", True
+    ).execute().data or []
+    total_due = sum(
+        (amount_to_usd(row["amount"], row["currency"]) for row in tariffs),
+        Decimal("0")
+    )
+
+    result = []
+    total_paid = Decimal("0")
+    total_remaining = Decimal("0")
+    for enrollment in paid_enrollments:
+        student = student_map.get(enrollment["student_id"])
+        if not student:
+            continue
+        paid = paid_by_enrollment.get(enrollment["id"], Decimal("0"))
+        remaining = max(total_due - paid, Decimal("0"))
+        if total_due <= 0:
+            payment_status = "À vérifier"
+        elif remaining <= 0:
+            payment_status = "Soldé"
+        else:
+            payment_status = "Partiel"
+        total_paid += paid
+        total_remaining += remaining
+        result.append({
+            **student,
+            "option_name": option_map.get(enrollment.get("option_id")),
+            "amount_due_usd": str(total_due.quantize(MONEY_QUANTUM, rounding=ROUND_HALF_UP)),
+            "amount_paid_usd": str(paid.quantize(MONEY_QUANTUM, rounding=ROUND_HALF_UP)),
+            "remaining_usd": str(remaining.quantize(MONEY_QUANTUM, rounding=ROUND_HALF_UP)),
+            "status": payment_status,
+        })
+
+    result.sort(key=lambda row: row["full_name"].casefold())
+    return {
+        "class_id": class_id,
+        "class_name": class_row["name"],
+        "school_year_label": year["label"],
+        "students": result,
+        "total_paid_usd": str(total_paid.quantize(MONEY_QUANTUM, rounding=ROUND_HALF_UP)),
+        "total_due_usd": str((total_due * len(result)).quantize(MONEY_QUANTUM, rounding=ROUND_HALF_UP)),
+        "total_remaining_usd": str(total_remaining.quantize(MONEY_QUANTUM, rounding=ROUND_HALF_UP)),
+    }
+
 
 @app.get("/api/admin/school-years")
 def list_school_years(context=Depends(require_roles("ADMINISTRATEUR", "PREFET", "PROMOTEUR"))):
