@@ -924,9 +924,9 @@ def student_payment_history(student_id: UUID, context=Depends(require_roles("CAI
     enrollment_ids = [row["id"] for row in enrollments]
     if not enrollment_ids:
         return {"student": student, "payments": [], "fee_balances": []}
-    payments = client.table("payments").select("*").in_(
-        "enrollment_id", enrollment_ids
-    ).order("payment_date", desc=True).execute().data or []
+    payments = client.table("payments").select(
+        "id,enrollment_id,fee_tariff_id,cashier_id,amount_paid,currency,amount_usd,exchange_rate,payment_reference,payment_date,notes,status"
+    ).in_("enrollment_id", enrollment_ids).order("payment_date", desc=True).execute().data or []
     year_ids = list({row["school_year_id"] for row in enrollments})
     years = client.table("school_years").select("id,label,is_active").in_("id", year_ids).execute().data or []
     year_map = {row["id"]: row["label"] for row in years}
