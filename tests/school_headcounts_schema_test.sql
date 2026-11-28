@@ -48,6 +48,12 @@ begin
      or not has_table_privilege('service_role', 'public.school_year_class_headcounts', 'insert') then
     raise exception 'Privilèges service_role manquants sur les effectifs';
   end if;
+  if has_function_privilege('authenticated',
+      'public.validate_student_decision(uuid,text,uuid)', 'execute')
+     or has_function_privilege('anon',
+      'public.validate_student_decision(uuid,text,uuid)', 'execute') then
+    raise exception 'L''ancienne RPC de décisions académiques reste exécutable';
+  end if;
 end $$;
 
 select
