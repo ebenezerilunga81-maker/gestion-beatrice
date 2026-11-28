@@ -26,7 +26,7 @@ create table if not exists public.school_year_class_headcounts (
   created_at timestamptz not null default now(),
   updated_at timestamptz not null default now(),
   constraint class_headcount_gender_total_check check (boys + girls >= 0),
-  constraint class_headcount_unique unique (school_year_id, class_id, option_id)
+  constraint class_headcount_unique unique nulls not distinct (school_year_id, class_id, option_id)
 );
 
 create index if not exists school_year_class_headcounts_year_idx
