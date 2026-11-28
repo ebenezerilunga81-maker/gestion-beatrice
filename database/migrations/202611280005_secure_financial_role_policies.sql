@@ -43,6 +43,10 @@ using (
 -- Les fiches élèves ne sont plus créées ni modifiées directement par les
 -- profils applicatifs. Les anciennes lignes restent conservées et consultables
 -- via les endpoints historiques tant que la migration fonctionnelle n'est pas achevée.
+-- Noms réellement utilisés par le schéma initial.
+drop policy if exists "students_insert_cashier" on public.students;
+drop policy if exists "students_update_prefet_or_cashier" on public.students;
+-- Compatibilité avec d'éventuels anciens noms de politiques.
 drop policy if exists students_insert_staff on public.students;
 drop policy if exists students_update_admin_prefet on public.students;
 revoke insert, update, delete on table public.students from anon, authenticated, public;
