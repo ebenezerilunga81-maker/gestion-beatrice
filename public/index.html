@@ -40,6 +40,48 @@ button,input,select,textarea{font:inherit}button{cursor:pointer}
 .payment-panel .btn.secondary{background:#fff}
 @media(max-width:700px){.payment-panel{padding:15px}.payment-form{grid-template-columns:1fr;gap:12px}.payment-form .field.full{grid-column:1}.payment-form #paymentStudentDetails{padding:12px}}
 
+
+/* Design system global — GESTION BÉATRICE */
+:root{--navy:#102b50;--blue:#2463a6;--sky:#edf4fc;--ink:#172b45;--muted:#64748b;--line:#e4eaf1;--bg:#f4f6fa;--white:#fff;--gold:#d8a83e;--red:#b83232;--green:#16845b;--radius:12px}
+body{background:#f4f6fa;color:#172b45;font-family:Inter,"Segoe UI",Roboto,Arial,sans-serif;font-size:14px;letter-spacing:.005em}
+.app{grid-template-columns:252px minmax(0,1fr);min-height:100vh}
+.sidebar{position:sticky;top:0;height:100vh;overflow-y:auto;background:linear-gradient(180deg,#102b50 0%,#0c2342 100%);padding:22px 15px 16px;box-shadow:4px 0 22px #102b5010}
+.brand{padding:5px 9px 22px;gap:12px}.brand img{width:46px;height:46px;border-radius:12px;box-shadow:0 2px 8px #0002}.brand strong{font-size:14px;letter-spacing:.025em}.brand small{display:block;margin-top:3px;font-size:11px}
+.navlabel{margin:25px 11px 9px;font-size:9px;letter-spacing:1.5px;color:#91a9c6}
+.nav{gap:5px}.nav button{display:flex;align-items:center;min-height:41px;padding:10px 12px;border-radius:9px;font-size:12.5px;font-weight:550;transition:background .16s ease,color .16s ease,transform .16s ease}.nav button span{width:27px;flex:0 0 27px;font-size:15px;opacity:.9}.nav button:hover{background:#ffffff13;transform:translateX(2px)}.nav button.active{background:#ffffff20;color:#fff;box-shadow:inset 3px 0 #83b8f0}
+.sidefoot{font-size:10px;line-height:1.7;letter-spacing:.02em}
+.main{min-width:0;background:#f4f6fa}.topbar{height:72px;padding:0 32px;background:#fff;border-bottom:1px solid #e8edf3;box-shadow:0 2px 8px #102b5006}
+.crumb{font-size:11px;letter-spacing:.015em}.crumb b{color:#233d5b;font-weight:700}
+.topright{gap:18px}.status{font-size:11px;color:#64748b}.dot{width:7px;height:7px;box-shadow:0 0 0 3px #e5f5ed}
+.userbox{position:relative;display:grid;grid-template-columns:36px auto;grid-template-rows:auto auto;column-gap:10px;align-items:center;text-align:left;min-width:125px;padding-left:0}
+.userbox:before{content:attr(data-initials);grid-column:1;grid-row:1/3;width:34px;height:34px;border-radius:50%;display:grid;place-items:center;background:#eaf2fb;color:#1e5792;font-size:11px;font-weight:800;border:1px solid #dbe8f6}
+.userbox b{grid-column:2;grid-row:1;font-size:12px;color:#233b58;max-width:150px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}.userbox span{grid-column:2;grid-row:2;font-size:10px}
+.logout{border:1px solid #dce4ed;border-radius:8px;padding:9px 13px;font-weight:650;transition:.15s}.logout:hover{background:#f5f8fc;border-color:#c8d7e8}
+.content{max-width:1600px;padding:30px 32px 44px}
+.eyebrow{font-size:9px;letter-spacing:1.7px;color:#4776a7}
+.heading{align-items:center;margin:7px 0 23px}.heading h1{font-size:25px;letter-spacing:-.035em;font-weight:750;color:#162e4b}.heading p{margin-top:6px;font-size:12px;color:#718096}
+.btn{border-radius:8px;padding:10px 15px;font-size:12px;font-weight:700;box-shadow:0 2px 5px #1d5da815;transition:filter .15s,transform .15s}.btn:hover{filter:brightness(1.04);transform:translateY(-1px)}.btn.secondary{box-shadow:none}
+.cards{gap:16px;margin-bottom:20px}.card,.panel{border:1px solid #e5eaf1;border-radius:12px;background:#fff;box-shadow:0 2px 8px #19385b07}
+.card{padding:18px 19px;transition:box-shadow .15s,border-color .15s}.card:hover{border-color:#d7e2ef;box-shadow:0 6px 18px #19385b0c}.cardtop{font-size:11px;font-weight:600;color:#718096}.cardicon{border-radius:9px;background:#edf4fc;color:#28649f}.value{font-size:25px;letter-spacing:-.025em;font-variant-numeric:tabular-nums;color:#183654;margin:12px 0 3px}.sub{font-size:10.5px;color:#8492a3}
+.grid{gap:18px}.panel{padding:19px;margin-bottom:17px}.panelhead{margin-bottom:15px}.panel h2{font-size:14px;font-weight:750;color:#1b3553}.muted{color:#738196}
+.tablewrap{border:1px solid #e5eaf1;border-radius:10px;box-shadow:0 1px 3px #18385a05}
+.table{min-width:700px;border-collapse:separate;border-spacing:0;font-variant-numeric:tabular-nums}
+.table th{background:#f5f7fa;color:#607187;padding:12px 14px;font-size:9px;letter-spacing:.85px;border-bottom:1px solid #e3e9f0}
+.table td{padding:12px 14px;font-size:12px;color:#42566f;border-bottom:1px solid #edf1f5}
+.table tbody tr:nth-child(even){background:#fbfcfe}.table tbody tr:hover{background:#f2f7fd}.table td b{color:#203d5d}.table td:last-child{text-align:right}.table .tag{font-size:10px;padding:4px 9px}
+.formgrid{gap:14px 16px}.field{margin-bottom:13px}.field span{font-size:11px;color:#405875;font-weight:700}.field input,.field select,.field textarea,.search{border:1px solid #dce4ed;border-radius:8px;padding:10px 12px;min-height:40px;background:#fff;font-size:13px;transition:border-color .15s,box-shadow .15s}
+.field input:focus,.field select:focus,.field textarea:focus,.search:focus{border-color:#6d9dcc;box-shadow:0 0 0 3px #2463a612}
+.toolbar{gap:10px;margin-bottom:15px}.search{max-width:360px}.notice,.success,.error{border-radius:9px;line-height:1.55}
+.empty{padding:34px 20px;color:#7a899b}
+.login-screen{background:linear-gradient(135deg,#0d2544 0%,#173f6b 48%,#edf2f8 48%,#f4f6fa 100%)}
+.login-card{width:min(100%,440px);padding:36px;border-radius:17px;border:1px solid #e3eaf2;box-shadow:0 24px 70px #061a3330}
+.login-brand{margin-bottom:27px}.login-brand img{width:76px;height:76px;border-radius:16px;border:1px solid #e4eaf1;box-shadow:0 4px 14px #102b5010}.login-brand h1{font-size:21px;letter-spacing:-.025em}.login-card h2{font-size:18px;color:#193653}.login-card .field{margin:15px 0}.login-card .btn{min-height:44px;margin-top:4px}
+#pageMessage{margin:0 0 15px}
+canvas,svg{max-width:100%}
+@media(max-width:1000px){.content{padding:24px 22px}.topbar{padding:0 22px}}
+@media(max-width:700px){.app{grid-template-columns:1fr}.sidebar{position:relative;height:auto;min-height:0;overflow:visible;padding:12px 12px 10px}.brand{padding:2px 7px 11px}.nav{gap:4px}.nav button{min-height:38px}.topbar{padding:0 14px}.content{padding:20px 14px 32px}.topright{gap:10px}.userbox{min-width:0;grid-template-columns:30px auto;column-gap:7px}.userbox:before{width:29px;height:29px}.userbox b{max-width:92px;font-size:11px}.logout{padding:8px 9px;font-size:11px}.status{display:none}.cards{gap:9px}.panel{padding:14px}.login-card{padding:27px 22px}}
+@media(prefers-reduced-motion:reduce){*,*::before,*::after{scroll-behavior:auto!important;transition:none!important;animation:none!important}}
+
 </style>
 </head>
 <body>
@@ -80,7 +122,7 @@ function message(text,type="success"){const box=$("pageMessage");if(box){box.cla
 function heading(title,sub,action=""){return '<div class="eyebrow">Gestion scolaire</div><div class="heading"><div><h1>'+title+'</h1><p>'+sub+'</p></div>'+action+'</div><div id="pageMessage" class="hidden"></div>'}
 function roleAllowed(...roles){return roles.includes(user.role)}
 function showLogin(){ $("loginScreen").classList.remove("hidden");$("app").classList.add("hidden");}
-async function enterApp(){try{refs=await api("/api/references");sessionStorage.setItem("gb_user",JSON.stringify(user));$("loginScreen").classList.add("hidden");$("app").classList.remove("hidden");$("userName").textContent=user.full_name||"Utilisateur";$("userRole").textContent=roleNames[user.role]||user.role;applyPermissions();await navigate("dashboard");}catch(e){token="";sessionStorage.removeItem("gb_access_token");sessionStorage.removeItem("gb_refresh_token");sessionStorage.removeItem("gb_user");showLogin();$("loginError").textContent=e.message;$("loginError").style.display="block";}}
+async function enterApp(){try{refs=await api("/api/references");sessionStorage.setItem("gb_user",JSON.stringify(user));$("loginScreen").classList.add("hidden");$("app").classList.remove("hidden");$("userName").textContent=user.full_name||"Utilisateur";$("userName").parentElement.setAttribute("data-initials",(user.full_name||"GB").trim().split(/\s+/).slice(0,2).map(x=>x[0]).join("").toUpperCase());$("userRole").textContent=roleNames[user.role]||user.role;applyPermissions();await navigate("dashboard");}catch(e){token="";sessionStorage.removeItem("gb_access_token");sessionStorage.removeItem("gb_refresh_token");sessionStorage.removeItem("gb_user");showLogin();$("loginError").textContent=e.message;$("loginError").style.display="block";}}
 function applyPermissions(){if(!roleAllowed("ADMINISTRATEUR")){document.querySelector('[data-page="accounts"]').classList.add("hidden");document.querySelector('[data-page="years"]').classList.add("hidden");document.querySelector('[data-page="tariffs"]').classList.add("hidden");}if(!roleAllowed("ADMINISTRATEUR","PREFET","PROMOTEUR")){document.querySelector('[data-page="decisions"]').classList.add("hidden");}if(user.role==="CAISSIER"){document.querySelector('[data-page="students"]').classList.add("hidden");}}
 async function navigate(p){page=p;document.querySelectorAll("[data-page]").forEach(b=>b.classList.toggle("active",b.dataset.page===p));$("crumbTitle").textContent=titles[p];try{if(p==="dashboard")await renderDashboard();else if(p==="students")await renderStudents();else if(p==="payments")await renderPayments();else if(p==="years")await renderYears();else if(p==="accounts")await renderAccounts();else if(p==="tariffs")await renderTariffs();else if(p==="decisions")await renderDecisions();else if(p==="reports")await renderArchive();else await renderSettings();}catch(e){$("pageContent").innerHTML=heading(titles[p],"")+'<div class="error">'+esc(e.message)+'</div>';}}
 document.querySelectorAll("[data-page]").forEach(b=>b.addEventListener("click",()=>navigate(b.dataset.page)));
