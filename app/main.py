@@ -946,6 +946,13 @@ def save_school_headcounts(
             "updated_at": datetime.now(timezone.utc).isoformat(),
         })
 
+    detailed_total = sum(row["boys"] + row["girls"] for row in class_rows)
+    if detailed_total != payload.total_students:
+        raise HTTPException(
+            status_code=422,
+            detail="La somme des effectifs par classe et option doit correspondre à l'effectif total déclaré.",
+        )
+
     try:
         header = {
             "school_year_id": str(payload.school_year_id),
