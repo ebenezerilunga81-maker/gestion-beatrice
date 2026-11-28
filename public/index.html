@@ -169,7 +169,7 @@ async function renderPayments(){
   return (refs.tariffs||[]).filter(t=>String(t.category_id)===String(cat)&&String(t.class_id)===String(cls)&&t.is_active).map(t=>{const due=String(t.currency).trim().toUpperCase()==="CDF"?Math.round(Number(t.amount)/2300*100)/100:Number(t.amount);return {fee_tariff_id:t.id,fee_type_name:feeTypeName(t.fee_type_id),amount_due:String(due),amount_paid:"0",remaining_balance:String(due),currency:"USD",tariff_currency:t.currency};});
  };
  $("pageContent").innerHTML=heading("Paiements & caisse",isCashier?"Recherche d’un élève, encaissement et historique de vos opérations.":"Consultation et contrôle des paiements enregistrés.")+
- (isCashier?'<section class="panel"><div class="panelhead"><h2>Nouvel encaissement</h2><span>Accès réservé au caissier</span></div><form id="paymentForm" class="formgrid"><label class="field full"><span>Rechercher l’élève par son nom ou numéro</span><input id="studentSearch" type="search" autocomplete="off" placeholder="Tapez au moins deux lettres du nom…"></label><div class="field full" id="studentSuggestions"></div><div class="field full"><div id="studentSelected" class="notice">Commencez par rechercher l’élève. S’il existe déjà, sélectionnez sa fiche.</div></div><div class="field full" id="paymentStudentDetails"><div class="formgrid"><label class="field full"><span>Nom complet de l’élève *</span><input id="paymentFullName" minlength="2" maxlength="180" required></label><label class="field"><span>Catégorie *</span><select id="paymentCategory" required><option value="">Choisir…</option>'+categoryOptions()+'</select></label><label class="field"><span>Classe *</span><select id="paymentClass" required><option value="">Choisir la catégorie d’abord</option></select></label><label class="field hidden" id="paymentOptionField"><span>Option des humanités *</span><select id="paymentOption"><option value="">Choisir…</option>'+optionOptions()+'</select></label><label class="field"><span>Date de naissance (facultatif)</span><input id="paymentDob" type="date"></label></div></div><label class="field full"><span>Type de frais à payer *</span><select id="paymentFee" required disabled><option value="">Sélectionnez d’abord l’élève et sa classe…</option></select></label><div class="field full"><div id="paymentBalanceHint" class="notice">Le tarif et le solde s’afficheront après la sélection du frais.</div></div><label class="field"><span>Devise du paiement *</span><select id="paymentCurrency" required><option value="USD">Dollar américain (USD)</option><option value="CDF">Franc congolais (CDF)</option></select></label><label class="field"><span>Montant réellement reçu *</span><input name="amount_paid" id="paymentAmount" type="number" min="0.01" step="0.01" required></label><label class="field"><span>Observation (facultatif)</span><input name="notes" maxlength="500" placeholder="Précision éventuelle"></label><div class="field full"><button class="btn" type="submit" '+(!refs.active_year?'disabled':'')+'>Valider le paiement et préparer le ticket</button></div></form></section>':'')+
+ (isCashier?'<section class="panel"><div class="panelhead"><h2>Nouvel encaissement</h2><span>Accès réservé au caissier</span></div><form id="paymentForm" class="formgrid"><label class="field full"><span>Rechercher l’élève par son nom ou numéro</span><input id="studentSearch" type="search" autocomplete="off" placeholder="Tapez au moins deux lettres du nom…"></label><div class="field full" id="studentSuggestions"></div><div class="field full"><div id="studentSelected" class="notice">Commencez par rechercher l’élève. S’il existe déjà, sélectionnez sa fiche.</div></div><div class="field full" id="paymentStudentDetails"><div class="formgrid"><label class="field"><span>Catégorie *</span><select id="paymentCategory"><option value="">Choisir…</option>'+categoryOptions()+'</select></label><label class="field"><span>Classe *</span><select id="paymentClass"><option value="">Choisir la catégorie d’abord</option></select></label><label class="field hidden" id="paymentOptionField"><span>Option des humanités *</span><select id="paymentOption"><option value="">Choisir…</option>'+optionOptions()+'</select></label><label class="field"><span>Date de naissance (facultatif)</span><input id="paymentDob" type="date"></label></div></div><label class="field full"><span>Type de frais à payer *</span><select id="paymentFee" required disabled><option value="">Sélectionnez d’abord l’élève et sa classe…</option></select></label><div class="field full"><div id="paymentBalanceHint" class="notice">Le tarif et le solde s’afficheront après la sélection du frais.</div></div><label class="field"><span>Devise du paiement *</span><select id="paymentCurrency" required><option value="USD">Dollar américain (USD)</option><option value="CDF">Franc congolais (CDF)</option></select></label><label class="field"><span>Montant réellement reçu *</span><input name="amount_paid" id="paymentAmount" type="number" min="0.01" step="0.01" required></label><label class="field"><span>Observation (facultatif)</span><input name="notes" maxlength="500" placeholder="Précision éventuelle"></label><div class="field full"><button class="btn" type="submit" '+(!refs.active_year?'disabled':'')+'>Valider le paiement et préparer le ticket</button></div></form></section>':'')+
  (isCashier&&lastTicket?'<section class="panel ticket-ready"><div class="panelhead"><h2>Ticket prêt à imprimer</h2><span>'+esc(lastTicket.ticket_number)+'</span></div><p>Le paiement vient d’être enregistré.</p><button class="btn" id="printTicket">Imprimer le ticket</button></section>':'')+
  (isCashier?"":'<section class="panel"><div class="panelhead"><h2>Historique des paiements</h2><span>'+d.payments.length+' opération(s)</span></div><div class="tablewrap"><table class="table"><thead><tr><th>Date</th><th>N° ticket</th><th>Référence</th><th>Élève</th><th>Frais</th><th>Montant</th><th>Statut</th></tr></thead><tbody>'+paymentRows(d.payments,false)+'</tbody></table></div></section>')+
  (isCashier?'<div id="correctionModal" class="hidden" style="position:fixed;inset:0;background:#0b173b88;z-index:1000;display:flex;align-items:center;justify-content:center;padding:20px"><section class="panel" style="width:min(480px,100%);box-shadow:0 20px 60px #0003"><div class="panelhead"><h2>Rectifier un paiement</h2><button type="button" class="btn secondary" id="closeCorrection">Fermer</button></div><form id="correctionForm" class="formgrid"><input type="hidden" name="payment_id"><label class="field full"><span>Nouveau montant reçu *</span><input name="amount_paid" type="number" min="0.01" step="0.01" required></label><label class="field full"><span>Observation / motif de rectification *</span><input name="notes" maxlength="500" required></label><div class="field full"><button class="btn">Enregistrer la rectification</button></div></form></section></div>':'');
@@ -180,7 +180,8 @@ async function renderPayments(){
    selectedStudent=student||null;
    if(student){
     $("studentSelected").textContent="Élève sélectionné : "+student.full_name+" ("+student.student_number+"). "+(student.enrollment_id?"Inscription de l’année active trouvée.":"Aucune inscription active : complétez sa catégorie et sa classe.");
-    $("paymentFullName").value=student.full_name;
+    search.value=student.full_name;
+    $("paymentCategory").required=false;$("paymentClass").required=false;$("paymentOption").required=false;
     $("paymentDob").value=student.date_of_birth||"";
     if(student.enrollment_id){
      details.classList.add("hidden");
@@ -192,12 +193,13 @@ async function renderPayments(){
      $("paymentClass").value=student.class_id||"";
      $("paymentOption").value=student.option_id||"";
      $("paymentOptionField").classList.toggle("hidden",student.category_code!=="HUMANITE");
+     $("paymentCategory").required=true;$("paymentClass").required=true;$("paymentOption").required=student.category_code==="HUMANITE";
      currentFees=buildNewFees();
     }
    }else{
     $("studentSelected").textContent="Nouvelle fiche élève : vérifiez le nom, puis choisissez la catégorie et la classe.";
     details.classList.remove("hidden");
-    $("paymentFullName").value=search.value.trim();
+    $("paymentCategory").required=true;$("paymentClass").required=true;$("paymentOption").required=false;
     $("paymentDob").value="";
     $("paymentCategory").value="";
     $("paymentClass").innerHTML='<option value="">Choisir la catégorie d’abord</option>';
@@ -267,32 +269,38 @@ async function renderPayments(){
   amountInput.addEventListener("input",updatePaymentPreview);
   $("paymentForm").addEventListener("submit",async e=>{
    e.preventDefault();
-   if(!selectedStudent&&!$("paymentFullName").value.trim()){message("Saisissez le nom complet de l’élève.","error");return;}
+   if(!selectedStudent&&!search.value.trim()){message("Saisissez le nom complet de l’élève dans le champ de recherche.","error");return;}
    const fee=currentFees.find(x=>String(x.fee_tariff_id)===feeSelect.value);
    if(!fee){message("Sélectionnez un frais valide.","error");return;}
    const amount=Number(amountInput.value);
    const currency=$("paymentCurrency").value;
    const amountUsd=currency==="CDF"?Math.round(amount/2300*100)/100:Math.round(amount*100)/100;
    if(!(amount>0)||amountUsd<=0||amountUsd>Number(fee.remaining_balance)){message("Le montant converti en USD doit être positif et ne peut pas dépasser le solde restant.","error");return;}
+   if(!selectedStudent?.enrollment_id&&(!Number($("paymentCategory").value)||!Number($("paymentClass").value))){
+    message("Choisissez la catégorie et la classe de l’élève.","error");return;
+   }
    const body={fee_tariff_id:fee.fee_tariff_id,amount_paid:amount,currency,notes:e.target.elements.notes.value||null};
    if(selectedStudent?.enrollment_id){body.enrollment_id=selectedStudent.enrollment_id;}
    else{
     if(selectedStudent?.id)body.student_id=selectedStudent.id;
-    body.full_name=$("paymentFullName").value.trim();
+    body.full_name=search.value.trim();
     body.date_of_birth=$("paymentDob").value||null;
     body.category_id=Number($("paymentCategory").value);
     body.class_id=Number($("paymentClass").value);
     body.option_id=$("paymentOption").value?Number($("paymentOption").value):null;
    }
+   const submitButton=e.target.querySelector('button[type="submit"]');
+   submitButton.disabled=true;submitButton.textContent="Enregistrement du paiement…";
    try{
     const r=await api("/api/payments",{method:"POST",body:JSON.stringify(body)});
     const catName=refs.categories.find(x=>String(x.id)===String(selectedStudent?.category_id||$("paymentCategory").value))?.name||selectedStudent?.category_name||"";
     const clsName=selectedStudent?.class_name||refs.classes.find(x=>String(x.id)===String(selectedStudent?.class_id||$("paymentClass").value))?.name||"";
     const optName=selectedStudent?.option_name||refs.options.find(x=>String(x.id)===String(selectedStudent?.option_id||$("paymentOption").value))?.name||"";
-    lastTicket={...r,student_name:r.student?.full_name||$("paymentFullName").value.trim(),student_number:r.student?.student_number||selectedStudent?.student_number||"—",class_name:clsName,category_name:catName,option_name:optName,fee_type_name:fee.fee_type_name,cashier_name:user.full_name,issued_at:new Date().toISOString()};
-    message("Paiement enregistré. Ticket "+r.ticket_number+" prêt à imprimer.");
+    lastTicket={...r,student_name:r.student?.full_name||search.value.trim(),student_number:r.student?.student_number||selectedStudent?.student_number||"—",class_name:clsName,category_name:catName,option_name:optName,fee_type_name:fee.fee_type_name,cashier_name:user.full_name,issued_at:new Date().toISOString()};
     await renderPayments();
+    message("Paiement enregistré. Ticket "+r.ticket_number+" prêt à imprimer.");
    }catch(x){message(x.message,"error");}
+   finally{if(submitButton.isConnected){submitButton.disabled=false;submitButton.textContent="Valider le paiement et préparer le ticket";}}
   });
   document.querySelectorAll(".correctPayment").forEach(btn=>btn.addEventListener("click",()=>{
    const modal=$("correctionModal"),form=$("correctionForm");form.elements.payment_id.value=btn.dataset.id;form.elements.amount_paid.value=btn.dataset.amount;form.elements.notes.value=btn.dataset.notes||"Rectification de caisse";form.querySelector("label span").textContent="Nouveau montant reçu ("+btn.dataset.currency+") *";modal.classList.remove("hidden");
