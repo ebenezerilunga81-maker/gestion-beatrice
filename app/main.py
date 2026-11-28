@@ -857,6 +857,127 @@ def activate_school_year(year_id: UUID, context=Depends(require_roles("ADMINISTR
     return {"school_year": updated}
 
 
+
+# ---------------------------------------------------------------------------
+# Effectifs scolaires déclarés — données administratives indépendantes des paiements
+# ---------------------------------------------------------------------------
+class ClassHeadcountInput(BaseModel):
+    class_id: int
+    option_id: Optional[int] = None
+    boys: int = Field(ge=0)
+    girls: int = Field(ge=0)
+
+
+class SchoolHeadcountInput(BaseModel):
+    school_year_id: UUID
+    total_students: int = Field(ge=0)
+    total_boys: int = Field(ge=0)
+    total_girls: int = Field(ge=0)
+    notes: Optional[str] = Field(default=None, max_length=1000)
+    classes: list[ClassHeadcountInput] = Field(default_factory=list)
+
+
+@app.get("/api/admin/headcounts")
+def get_school_headcounts(
+    school_year_id: UUID,
+    context=Depends(require_roles("ADMINISTRATEUR", "PREFET", "PROMOTEUR")),
+):
+    client = admin_client()
+    year = client.table("school_years").select("id,label").eq(
+        "id", str(school_year_id)
+    ).maybe_single().execute().data
+    if not year:
+        raise HTTPException(status_code=404, detail="Année scolaire introuvable.")
+    total = client.table("school_year_headcounts").select("*").eq(
+        "school_year_id", str(school_year_id)
+    ).maybe_single().execute().data
+    rows = client.table("school_year_class_headcounts").select(
+        "id,school_year_id,class_id,option_id,boys,girls"
+    ).eq("school_year_id", str(school_year_id)).execute().data or []
+    return {"school_year": year, "headcount": total, "classes": rows}
+
+
+@app.put("/api/admin/headcounts")
+def save_school_headcounts(
+    payload: SchoolHeadcountInput,
+    context=Depends(require_roles("ADMINISTRATEUR")),
+):
+    if payload.total_boys + payload.total_girls != payload.total_students:
+        raise HTTPException(status_code=422, detail="Le total doit être égal à garçons + filles.")
+    client = admin_client()
+    year = client.table("school_years").select("id,label").eq(
+        "id", str(payload.school_year_id)
+    ).maybe_single().execute().data
+    if not year:
+        raise HTTPException(status_code=404, detail="Année scolaire introuvable.")
+
+    seen = set()
+    class_rows = []
+    for item in payload.classes:
+        key = (item.class_id, item.option_id)
+        if key in seen:
+            raise HTTPException(status_code=422, detail="Une classe ou option est répétée.")
+        seen.add(key)
+        cls = client.table("classes").select("id,category_id").eq(
+            "id", item.class_id
+        ).maybe_single().execute().data
+        if not cls:
+            raise HTTPException(status_code=422, detail="Une classe sélectionnée est introuvable.")
+        category = client.table("categories").select("code").eq(
+            "id", cls["category_id"]
+        ).single().execute().data
+        if category["code"] == "HUMANITE" and not item.option_id:
+            raise HTTPException(status_code=422, detail="L'option est obligatoire pour les humanités.")
+        if category["code"] != "HUMANITE" and item.option_id:
+            raise HTTPException(status_code=422, detail="L'option ne peut être renseignée que pour les humanités.")
+        if item.option_id:
+            option = client.table("options").select("id").eq(
+                "id", item.option_id
+            ).eq("is_active", True).maybe_single().execute().data
+            if not option:
+                raise HTTPException(status_code=422, detail="Option invalide.")
+        class_rows.append({
+            "school_year_id": str(payload.school_year_id),
+            "class_id": item.class_id,
+            "option_id": item.option_id,
+            "boys": item.boys,
+            "girls": item.girls,
+            "declared_by": context["profile"]["id"],
+            "updated_at": datetime.now(timezone.utc).isoformat(),
+        })
+
+    try:
+        header = {
+            "school_year_id": str(payload.school_year_id),
+            "total_students": payload.total_students,
+            "total_boys": payload.total_boys,
+            "total_girls": payload.total_girls,
+            "notes": payload.notes,
+            "declared_by": context["profile"]["id"],
+            "updated_at": datetime.now(timezone.utc).isoformat(),
+        }
+        saved = client.table("school_year_headcounts").upsert(
+            header, on_conflict="school_year_id"
+        ).execute().data
+        if class_rows:
+            client.table("school_year_class_headcounts").upsert(
+                class_rows, on_conflict="school_year_id,class_id,option_id"
+            ).execute()
+        _audit_business(
+            context, "SAVE_SCHOOL_HEADCOUNTS", "school_year_headcounts",
+            payload.school_year_id,
+            new_data={"total_students": payload.total_students,
+                      "total_boys": payload.total_boys,
+                      "total_girls": payload.total_girls,
+                      "class_rows": len(class_rows)},
+        )
+        return {"headcount": saved[0] if saved else header, "saved_class_rows": len(class_rows)}
+    except HTTPException:
+        raise
+    except Exception:
+        logger.exception("Enregistrement des effectifs impossible")
+        raise HTTPException(status_code=500, detail="Impossible d'enregistrer les effectifs. Vérifiez la configuration de la base de données.")
+
 @app.get("/api/students")
 def list_students(q: str = "", context=Depends(require_roles("ADMINISTRATEUR", "PREFET", "PROMOTEUR", "CAISSIER"))):
     client = admin_client()
