@@ -82,6 +82,7 @@ jobs:
           psql --set ON_ERROR_STOP=1 --file database/migrations/202611280001_school_year_headcounts.sql
           psql --set ON_ERROR_STOP=1 --file database/migrations/202611280002_restrict_headcounts_api_access.sql
           psql --set ON_ERROR_STOP=1 --file database/migrations/202611280003_disable_academic_decisions_rpc.sql
+          psql --set ON_ERROR_STOP=1 --file database/migrations/202611280004_revoke_decision_rpc_service_role.sql
       - name: Run structural smoke tests
         run: psql --set ON_ERROR_STOP=1 --file tests/schema_smoke_tests.sql
       - name: Verify declared school headcounts schema\n        run: psql --set ON_ERROR_STOP=1 --file tests/school_headcounts_schema_test.sql\n      - name: Test partial payment, CDF complement, and overpayment rejection
