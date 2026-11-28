@@ -880,7 +880,7 @@ class SchoolHeadcountInput(BaseModel):
 @app.get("/api/admin/headcounts")
 def get_school_headcounts(
     school_year_id: UUID,
-    context=Depends(require_roles("ADMINISTRATEUR", "PREFET", "PROMOTEUR")),
+    context=Depends(require_roles("ADMINISTRATEUR", "PREFET", "PROMOTEUR", "CAISSIER")),
 ):
     client = admin_client()
     year = client.table("school_years").select("id,label").eq(
@@ -990,7 +990,7 @@ def save_school_headcounts(
 @app.get("/api/admin/headcounts/comparison")
 def compare_school_headcounts(
     school_year_id: UUID,
-    context=Depends(require_roles("ADMINISTRATEUR", "PREFET", "PROMOTEUR")),
+    context=Depends(require_roles("ADMINISTRATEUR", "PREFET", "PROMOTEUR", "CAISSIER")),
 ):
     """Compare effectifs déclarés, élèves payeurs, montants théoriques et encaissements."""
     client = admin_client()
