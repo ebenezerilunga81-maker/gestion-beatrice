@@ -72,9 +72,24 @@ begin
   values (v_student_id, v_school_year_id, v_category_id, v_class_id)
   returning id into v_enrollment_id;
 
-  insert into public.fee_tariffs(school_year_id, fee_type_id, category_id, class_id, amount, currency, is_active)
-  values (v_school_year_id, v_fee_type_id, v_category_id, v_class_id, 100, 'USD', true)
-  returning id into v_tariff_id;
+  -- L'ouverture d'une année peut précréer automatiquement les tarifs depuis les modèles.
+  select id into v_tariff_id
+  from public.fee_tariffs
+  where school_year_id = v_school_year_id
+    and fee_type_id = v_fee_type_id
+    and category_id = v_category_id
+    and class_id = v_class_id
+  limit 1;
+
+  if v_tariff_id is null then
+    insert into public.fee_tariffs(school_year_id, fee_type_id, category_id, class_id, amount, currency, is_active)
+    values (v_school_year_id, v_fee_type_id, v_category_id, v_class_id, 100, 'USD', true)
+    returning id into v_tariff_id;
+  else
+    update public.fee_tariffs
+    set amount = 100, currency = 'USD', is_active = true
+    where id = v_tariff_id;
+  end if;
 
   -- Premier versement partiel en USD : 50 USD.
   perform * from public.register_school_payment(
