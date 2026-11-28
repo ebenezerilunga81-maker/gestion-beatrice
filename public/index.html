@@ -86,11 +86,11 @@ if(user.role==="CAISSIER"){
   });
   let timer=null,request=0;
   search.addEventListener("input",()=>{
+    const current=++request;
     clearTimeout(timer);suggestions.innerHTML="";history.innerHTML='<div class="empty">Recherche en cours…</div>';
     const term=search.value.trim();
     if(term.length<2){history.innerHTML='<div class="empty">Saisissez au moins deux caractères pour rechercher un élève.</div>';return;}
     timer=setTimeout(async()=>{
-      const current=++request;
       try{
         const found=(await api("/api/students/search?q="+encodeURIComponent(term))).students||[];
         if(current!==request)return;
