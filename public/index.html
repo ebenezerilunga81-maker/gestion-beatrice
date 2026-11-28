@@ -278,6 +278,32 @@ canvas,svg{max-width:100%}
   .dashboard-search-history>.panelhead{padding:13px}
 }
 
+
+/* En-tête et cartes du tableau de bord — palette sobre bleu et blanc */
+.topbar{
+  background:linear-gradient(105deg,#102b50 0%,#174b82 100%);
+  border-bottom:1px solid #0c2342;
+  box-shadow:0 4px 14px #102b5020;
+}
+.topbar .crumb{color:#dce9f7;font-size:13px;font-weight:650;letter-spacing:.025em}
+.topbar .crumb b{display:inline-block;margin-left:4px;color:#fff;font-size:18px;font-weight:800;letter-spacing:-.025em}
+.topbar .status{color:#e5eef8}
+.topbar .dot{background:#fff;box-shadow:0 0 0 3px #ffffff25}
+.topbar .userbox b{color:#fff}
+.topbar .userbox span{color:#dce9f7!important}
+.topbar .userbox:before{background:#fff;color:#174b82;border-color:#dce9f7}
+.topbar .logout{background:transparent;border-color:#ffffff55;color:#fff}
+.topbar .logout:hover{background:#ffffff18;border-color:#fff}
+.cards .card{border-color:#dce6f1;background:#fff;box-shadow:0 4px 14px #102b5010}
+.cards .cardicon{background:#174b82;color:#fff;border:1px solid #174b82}
+.cards .value{color:#102b50}
+.cards .cardtop{color:#355675}
+.cards .sub{color:#7189a3}
+@media(max-width:700px){
+ .topbar .crumb{font-size:11px}
+ .topbar .crumb b{font-size:15px}
+}
+
 </style>
 </head>
 <body>
