@@ -985,6 +985,124 @@ def save_school_headcounts(
         logger.exception("Enregistrement des effectifs impossible")
         raise HTTPException(status_code=500, detail="Impossible d'enregistrer les effectifs. Vérifiez la configuration de la base de données.")
 
+
+@app.get("/api/admin/headcounts/comparison")
+def compare_school_headcounts(
+    school_year_id: UUID,
+    context=Depends(require_roles("ADMINISTRATEUR", "PREFET", "PROMOTEUR")),
+):
+    """Compare effectifs déclarés, élèves payeurs, montants théoriques et encaissements."""
+    client = admin_client()
+    year = client.table("school_years").select("id,label").eq(
+        "id", str(school_year_id)
+    ).maybe_single().execute().data
+    if not year:
+        raise HTTPException(status_code=404, detail="Année scolaire introuvable.")
+
+    declared = client.table("school_year_class_headcounts").select(
+        "class_id,boys,girls"
+    ).eq("school_year_id", str(school_year_id)).execute().data or []
+    headcount_by_class = {}
+    for row in declared:
+        headcount_by_class[row["class_id"]] = headcount_by_class.get(row["class_id"], 0) + row["boys"] + row["girls"]
+
+    tariffs = client.table("fee_tariffs").select(
+        "id,fee_type_id,class_id,amount,currency"
+    ).eq("school_year_id", str(school_year_id)).eq("is_active", True).execute().data or []
+    fee_types = {row["id"]: row["name"] for row in _rows("fee_types", "id,name")}
+    classes = client.table("classes").select("id,name,category_id").execute().data or []
+    categories = {row["id"]: row["name"] for row in _rows("categories", "id,name")}
+
+    enrollments = client.table("student_enrollments").select(
+        "id,student_id,class_id"
+    ).eq("school_year_id", str(school_year_id)).execute().data or []
+    enrollment_map = {row["id"]: row for row in enrollments}
+    enrollment_ids = list(enrollment_map)
+    payments = client.table("payments").select(
+        "enrollment_id,fee_tariff_id,amount_paid,currency,amount_usd,status"
+    ).eq("status", "VALIDE").in_("enrollment_id", enrollment_ids).execute().data or [] if enrollment_ids else []
+
+    paid_by_class_fee = {}
+    paid_students_by_class = {}
+    for payment in payments:
+        enrollment = enrollment_map.get(payment["enrollment_id"])
+        if not enrollment:
+            continue
+        class_id = enrollment["class_id"]
+        key = (class_id, payment["fee_tariff_id"])
+        paid_by_class_fee[key] = paid_by_class_fee.get(key, Decimal("0")) + payment_amount_usd(payment)
+        paid_students_by_class.setdefault(class_id, set()).add(enrollment["student_id"])
+
+    result = []
+    category_totals = {}
+    totals = {"declared_students": 0, "students_paid": 0,
+              "expected_usd": Decimal("0"), "collected_usd": Decimal("0")}
+    for cls in classes:
+        class_id = cls["id"]
+        declared_count = headcount_by_class.get(class_id, 0)
+        class_tariffs = [t for t in tariffs if t["class_id"] == class_id]
+        fee_breakdown = []
+        expected_class = Decimal("0")
+        collected_class = Decimal("0")
+        for tariff in class_tariffs:
+            per_student = amount_to_usd(tariff["amount"], tariff["currency"])
+            expected_fee = per_student * declared_count
+            collected_fee = paid_by_class_fee.get((class_id, tariff["id"]), Decimal("0"))
+            expected_class += expected_fee
+            collected_class += collected_fee
+            fee_breakdown.append({
+                "fee_type": fee_types.get(tariff["fee_type_id"], "Frais"),
+                "students_expected": declared_count,
+                "expected_usd": str(expected_fee),
+                "collected_usd": str(collected_fee),
+                "remaining_usd": str(max(expected_fee - collected_fee, Decimal("0"))),
+            })
+        if declared_count == 0 and not class_tariffs and class_id not in paid_students_by_class:
+            continue
+        paid_count = len(paid_students_by_class.get(class_id, set()))
+        row = {
+            "class_id": class_id,
+            "class_name": cls["name"],
+            "category_name": categories.get(cls["category_id"], "—"),
+            "declared_students": declared_count,
+            "students_paid": paid_count,
+            "expected_usd": str(expected_class),
+            "collected_usd": str(collected_class),
+            "remaining_usd": str(max(expected_class - collected_class, Decimal("0"))),
+            "fee_breakdown": fee_breakdown,
+        }
+        result.append(row)
+        category = row["category_name"]
+        aggregate = category_totals.setdefault(category, {
+            "category_name": category, "declared_students": 0, "students_paid": 0,
+            "expected_usd": Decimal("0"), "collected_usd": Decimal("0"),
+        })
+        aggregate["declared_students"] += declared_count
+        aggregate["students_paid"] += paid_count
+        aggregate["expected_usd"] += expected_class
+        aggregate["collected_usd"] += collected_class
+        totals["declared_students"] += declared_count
+        totals["students_paid"] += paid_count
+        totals["expected_usd"] += expected_class
+        totals["collected_usd"] += collected_class
+
+    for row in category_totals.values():
+        row["expected_usd"] = str(row["expected_usd"])
+        row["collected_usd"] = str(row["collected_usd"])
+        row["remaining_usd"] = str(max(Decimal(row["expected_usd"]) - Decimal(row["collected_usd"]), Decimal("0")))
+    totals["expected_usd"] = str(totals["expected_usd"])
+    totals["collected_usd"] = str(totals["collected_usd"])
+    totals["remaining_usd"] = str(max(Decimal(totals["expected_usd"]) - Decimal(totals["collected_usd"]), Decimal("0")))
+    result.sort(key=lambda row: (row["category_name"], row["class_name"]))
+    return {
+        "school_year": year,
+        "totals": totals,
+        "by_category": list(category_totals.values()),
+        "by_class": result,
+        "note": "Les effectifs proviennent des déclarations de l'établissement. Les élèves payeurs sont comptés à partir des paiements validés.",
+    }
+
+
 @app.get("/api/students")
 def list_students(q: str = "", context=Depends(require_roles("ADMINISTRATEUR", "PREFET", "PROMOTEUR", "CAISSIER"))):
     client = admin_client()
