@@ -11,6 +11,8 @@ on:
       - "tests/bootstrap_supabase_test.sql"
       - "database/migrations/003_paiements_usd_cdf_taux_2300.sql"
       - "database/migrations/004_rpc_devise_text_et_historique_eleve.sql"
+      - "database/migrations/202611280001_school_year_headcounts.sql"
+      - "tests/school_headcounts_schema_test.sql"
       - "tests/payment_rpc_currency_test.sql"
       - ".github/workflows/postgres-integration-test.yml"
   pull_request:
@@ -77,7 +79,8 @@ jobs:
         run: |
           psql --set ON_ERROR_STOP=1 --file database/migrations/003_paiements_usd_cdf_taux_2300.sql
           psql --set ON_ERROR_STOP=1 --file database/migrations/004_rpc_devise_text_et_historique_eleve.sql
+          psql --set ON_ERROR_STOP=1 --file database/migrations/202611280001_school_year_headcounts.sql
       - name: Run structural smoke tests
         run: psql --set ON_ERROR_STOP=1 --file tests/schema_smoke_tests.sql
-      - name: Test partial payment, CDF complement, and overpayment rejection
+      - name: Verify declared school headcounts schema\n        run: psql --set ON_ERROR_STOP=1 --file tests/school_headcounts_schema_test.sql\n      - name: Test partial payment, CDF complement, and overpayment rejection
         run: psql --set ON_ERROR_STOP=1 --file tests/payment_rpc_currency_test.sql
