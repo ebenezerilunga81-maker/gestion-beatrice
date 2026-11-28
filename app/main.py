@@ -1258,67 +1258,6 @@ def search_students_for_cashier(q: str = "", context=Depends(require_roles("ADMI
     return {"students": result, "active_year": year}
 
 
-class EnrollmentInput(BaseModel):
-    student_id: Optional[UUID] = None
-    full_name: str = Field(min_length=2, max_length=180)
-    date_of_birth: Optional[Date] = None
-    category_id: int
-    class_id: int
-    option_id: Optional[int] = None
-
-
-@app.post("/api/enrollments", status_code=201)
-def create_enrollment(payload: EnrollmentInput, context=Depends(require_roles("ADMINISTRATEUR"))):
-    client = admin_client()
-    year = client.table("school_years").select("id").eq("is_active", True).maybe_single().execute().data
-    if not year:
-        raise HTTPException(status_code=409, detail="Aucune année scolaire active. L'administrateur doit d'abord ouvrir une année.")
-    cls = client.table("classes").select("id,category_id").eq("id", payload.class_id).maybe_single().execute().data
-    if not cls or cls["category_id"] != payload.category_id:
-        raise HTTPException(status_code=422, detail="La classe ne correspond pas à la catégorie sélectionnée.")
-    cat = client.table("categories").select("code").eq("id", payload.category_id).single().execute().data
-    if cat["code"] == "HUMANITE" and not payload.option_id:
-        raise HTTPException(status_code=422, detail="L'option est obligatoire pour les humanités.")
-    if cat["code"] != "HUMANITE" and payload.option_id:
-        raise HTTPException(status_code=422, detail="L'option est réservée aux humanités.")
-    if payload.option_id:
-        valid_option = client.table("options").select("id").eq("id", payload.option_id).eq("is_active", True).maybe_single().execute().data
-        if not valid_option:
-            raise HTTPException(status_code=422, detail="Option invalide.")
-    student_id = str(payload.student_id) if payload.student_id else None
-    if not student_id:
-        duplicate = client.table("students").select("id").ilike(
-            "full_name", payload.full_name.strip()
-        ).limit(1).execute().data or []
-        if duplicate:
-            raise HTTPException(status_code=409, detail="Cette fiche élève existe déjà. Recherchez son nom et sélectionnez la fiche correspondante.")
-    try:
-        if student_id:
-            student = client.table("students").select("id,full_name").eq("id", student_id).single().execute().data
-            if not student:
-                raise HTTPException(status_code=404, detail="Élève introuvable.")
-        else:
-            created_student = client.table("students").insert({
-                "full_name": payload.full_name.strip(),
-                "date_of_birth": payload.date_of_birth.isoformat() if payload.date_of_birth else None,
-            }).execute().data[0]
-            student_id = created_student["id"]
-            student = created_student
-        created = client.table("student_enrollments").insert({
-            "student_id": student_id, "school_year_id": year["id"],
-            "category_id": payload.category_id, "class_id": payload.class_id,
-            "option_id": payload.option_id,
-        }).execute().data[0]
-        _audit_business(context, "CREATE_ENROLLMENT", "student_enrollments", created["id"],
-                        new_data={"student_id": student_id, "school_year_id": year["id"]})
-        return {"student": student, "enrollment": created}
-    except HTTPException:
-        raise
-    except Exception:
-        logger.exception("Inscription impossible")
-        raise HTTPException(status_code=400, detail="Inscription impossible. Vérifiez que l'élève n'est pas déjà inscrit pour cette année.")
-
-
 @app.get("/api/payments")
 def list_payments(
     limit: int = 500,
