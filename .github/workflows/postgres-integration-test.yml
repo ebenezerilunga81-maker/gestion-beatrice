@@ -1,4 +1,4 @@
-name: PostgreSQL schema integration test
+name: PostgreSQL schema integration test # also validates migration 004 on PRs
 
 on:
   push:
