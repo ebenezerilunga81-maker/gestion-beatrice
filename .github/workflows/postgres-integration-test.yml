@@ -7,6 +7,9 @@ on:
       - "database/schema_v1_corrige.sql"
       - "tests/schema_smoke_tests.sql"
       - "tests/bootstrap_supabase_test.sql"
+      - "database/migrations/003_paiements_usd_cdf_taux_2300.sql"
+      - "database/migrations/004_rpc_devise_text_et_historique_eleve.sql"
+      - "tests/payment_rpc_currency_test.sql"
       - ".github/workflows/postgres-integration-test.yml"
   pull_request:
     paths:
@@ -50,5 +53,11 @@ jobs:
         run: psql --set ON_ERROR_STOP=1 --file tests/bootstrap_supabase_test.sql
       - name: Execute schema in temporary PostgreSQL database
         run: psql --set ON_ERROR_STOP=1 --file database/schema_v1_corrige.sql
+      - name: Apply fixed-currency payment RPC migrations in the disposable database
+        run: |
+          psql --set ON_ERROR_STOP=1 --file database/migrations/003_paiements_usd_cdf_taux_2300.sql
+          psql --set ON_ERROR_STOP=1 --file database/migrations/004_rpc_devise_text_et_historique_eleve.sql
       - name: Run structural smoke tests
         run: psql --set ON_ERROR_STOP=1 --file tests/schema_smoke_tests.sql
+      - name: Test partial payment, CDF complement, and overpayment rejection
+        run: psql --set ON_ERROR_STOP=1 --file tests/payment_rpc_currency_test.sql
