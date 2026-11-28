@@ -317,13 +317,13 @@ canvas,svg{max-width:100%}
  <div class="brand"><img src="https://raw.githubusercontent.com/ebenezerilunga81-maker/gestion-beatrice/main/beatrice.jpeg" alt=""><div><strong>GESTION BÉATRICE</strong><small>Administration scolaire</small></div></div>
  <div class="navlabel">MENU PRINCIPAL</div><nav class="nav" id="mainNav">
  <button data-page="dashboard" class="active"><span>▦</span>Tableau de bord</button>
- <button data-page="students"><span>♙</span>Élèves & inscriptions</button>
+ <button data-page="students"><span>♙</span>Fiches élèves</button>
  <button data-page="payments"><span>▤</span>Paiements & caisse</button>
  <button data-page="years"><span>◷</span>Années scolaires</button>
- <button data-page="decisions"><span>⇧</span>Décisions & promotions</button>
+
  <button data-page="reports"><span>▥</span>Archivage</button></nav>
  <div class="navlabel">CONFIGURATION</div><nav class="nav" id="configNav">
- <button data-page="tariffs"><span>◇</span>Tarifs scolaires</button>
+ <button data-page="headcounts"><span>▦</span>Effectifs scolaires</button> <button data-page="tariffs"><span>◇</span>Tarifs scolaires</button>
  <button data-page="accounts"><span>♧</span>Utilisateurs & rôles</button>
  <button data-page="settings"><span>⚙</span>Paramètres</button></nav>
  <button class="side-logout" id="logoutBtn"><span>↪</span>Déconnexion</button>
@@ -336,7 +336,7 @@ canvas,svg{max-width:100%}
 const API="https://gestion-beatrice-api.onrender.com";
 const $=id=>document.getElementById(id);
 let token=sessionStorage.getItem("gb_access_token")||"", user=JSON.parse(sessionStorage.getItem("gb_user")||"{}"), refs=null, page="dashboard", lastTicket=null;
-const titles={dashboard:"Tableau de bord",students:"Élèves & inscriptions",payments:"Paiements & caisse",years:"Années scolaires",decisions:"Décisions & promotions",reports:"Archivage",tariffs:"Tarifs scolaires",accounts:"Utilisateurs & rôles",settings:"Paramètres"};
+const titles={dashboard:"Tableau de bord",students:"Fiches élèves",headcounts:"Effectifs scolaires",payments:"Paiements & caisse",years:"Années scolaires",reports:"Archivage",tariffs:"Tarifs scolaires",accounts:"Utilisateurs & rôles",settings:"Paramètres"};
 const roleNames={ADMINISTRATEUR:"Administrateur",PROMOTEUR:"Promoteur",PREFET:"Préfet",CAISSIER:"Caissier"};
 const esc=s=>String(s??"").replace(/[&<>"']/g,c=>({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;","'":"&#39;"}[c]));
 const money=(n,c)=>Number(n||0).toLocaleString("fr-FR",{maximumFractionDigits:2})+" "+(c||"");
@@ -346,8 +346,19 @@ function heading(title,sub,action=""){return '<div class="eyebrow">Gestion scola
 function roleAllowed(...roles){return roles.includes(user.role)}
 function showLogin(){ $("loginScreen").classList.remove("hidden");$("app").classList.add("hidden");}
 async function enterApp(){try{refs=await api("/api/references");sessionStorage.setItem("gb_user",JSON.stringify(user));$("loginScreen").classList.add("hidden");$("app").classList.remove("hidden");$("userName").textContent=user.full_name||"Utilisateur";$("userName").parentElement.setAttribute("data-initials",(user.full_name||"GB").trim().split(/\s+/).slice(0,2).map(x=>x[0]).join("").toUpperCase());$("userRole").textContent=roleNames[user.role]||user.role;applyPermissions();await navigate("dashboard");}catch(e){token="";sessionStorage.removeItem("gb_access_token");sessionStorage.removeItem("gb_refresh_token");sessionStorage.removeItem("gb_user");showLogin();$("loginError").textContent=e.message;$("loginError").style.display="block";}}
-function applyPermissions(){if(!roleAllowed("ADMINISTRATEUR")){document.querySelector('[data-page="accounts"]').classList.add("hidden");document.querySelector('[data-page="years"]').classList.add("hidden");document.querySelector('[data-page="tariffs"]').classList.add("hidden");}if(!roleAllowed("ADMINISTRATEUR","PREFET","PROMOTEUR")){document.querySelector('[data-page="decisions"]').classList.add("hidden");}if(user.role==="CAISSIER"){document.querySelector('[data-page="students"]').classList.add("hidden");}}
-async function navigate(p){page=p;document.querySelectorAll("[data-page]").forEach(b=>b.classList.toggle("active",b.dataset.page===p));$("crumbTitle").textContent=titles[p];try{if(p==="dashboard")await renderDashboard();else if(p==="students")await renderStudents();else if(p==="payments")await renderPayments();else if(p==="years")await renderYears();else if(p==="accounts")await renderAccounts();else if(p==="tariffs")await renderTariffs();else if(p==="decisions")await renderDecisions();else if(p==="reports")await renderArchive();else await renderSettings();}catch(e){$("pageContent").innerHTML=heading(titles[p],"")+'<div class="error">'+esc(e.message)+'</div>';}}
+function applyPermissions(){
+ if(!roleAllowed("ADMINISTRATEUR")){
+  document.querySelector('[data-page="accounts"]').classList.add("hidden");
+  document.querySelector('[data-page="years"]').classList.add("hidden");
+  document.querySelector('[data-page="tariffs"]').classList.add("hidden");
+ }
+ if(!roleAllowed("ADMINISTRATEUR","PREFET","PROMOTEUR"))document.querySelector('[data-page="headcounts"]').classList.add("hidden");
+ if(user.role==="CAISSIER"){
+  document.querySelector('[data-page="students"]').classList.add("hidden");
+  document.querySelector('[data-page="headcounts"]').classList.add("hidden");
+ }
+}
+async function navigate(p){page=p;document.querySelectorAll("[data-page]").forEach(b=>b.classList.toggle("active",b.dataset.page===p));$("crumbTitle").textContent=titles[p];try{if(p==="dashboard")await renderDashboard();else if(p==="students")await renderStudents();else if(p==="payments")await renderPayments();else if(p==="years")await renderYears();else if(p==="headcounts")await renderHeadcounts();else if(p==="accounts")await renderAccounts();else if(p==="tariffs")await renderTariffs();else if(p==="reports")await renderArchive();else await renderSettings();}catch(e){$("pageContent").innerHTML=heading(titles[p],"")+'<div class="error">'+esc(e.message)+'</div>';}}
 document.querySelectorAll("[data-page]").forEach(b=>b.addEventListener("click",()=>navigate(b.dataset.page)));
 $("loginForm").addEventListener("submit",async e=>{e.preventDefault();const btn=$("loginSubmit"),err=$("loginError");btn.disabled=true;btn.textContent="Connexion…";err.style.display="none";try{const data=await api("/api/auth/login",{method:"POST",body:JSON.stringify({identifier:$("loginIdentifier").value.trim(),password:$("loginPassword").value})});token=data.access_token;user=data.user||{};sessionStorage.setItem("gb_access_token",token);sessionStorage.setItem("gb_refresh_token",data.refresh_token);sessionStorage.setItem("gb_user",JSON.stringify(user));await enterApp();}catch(x){err.textContent=x.message;err.style.display="block";}finally{btn.disabled=false;btn.textContent="Se connecter";}});
 $("logoutBtn").addEventListener("click",()=>{token="";sessionStorage.clear();location.reload()});
@@ -464,35 +475,20 @@ function classOptions(catId){return (refs?.classes||[]).filter(c=>String(c.categ
 function categoryOptions(){return (refs?.categories||[]).map(c=>'<option value="'+c.id+'">'+esc(c.name)+'</option>').join("")}
 function optionOptions(){return (refs?.options||[]).filter(o=>o.is_active).map(o=>'<option value="'+o.id+'">'+esc(o.name)+'</option>').join("")}
 async function renderStudents(){
- const data=await api("/api/students"),rows=data.students||[],canManage=user.role==="ADMINISTRATEUR";
- $("pageContent").innerHTML=heading("Élèves & inscriptions",canManage?"Gestion des fiches et inscriptions de l’année scolaire active":"Consultation des élèves de l’année scolaire active")+
- (canManage?'<section class="panel"><div class="panelhead"><h2>Ajouter un élève / inscrire</h2><span>'+esc(refs.active_year?.label||"Aucune année active")+'</span></div><form id="enrollForm" class="formgrid"><label class="field"><span>Nom complet de l’élève *</span><input name="full_name" id="adminStudentName" required minlength="2"></label><input type="hidden" name="student_id" id="adminStudentId"><div class="field full" id="adminStudentSuggestions"></div><label class="field"><span>Date de naissance (facultatif)</span><input name="date_of_birth" type="date"></label><label class="field"><span>Catégorie *</span><select name="category_id" id="enrollCategory" required><option value="">Choisir…</option>'+categoryOptions()+'</select></label><label class="field"><span>Classe *</span><select name="class_id" id="enrollClass" required><option value="">Choisir la catégorie d’abord</option></select></label><label class="field hidden" id="optionField"><span>Option des humanités *</span><select name="option_id"><option value="">Choisir…</option>'+optionOptions()+'</select></label><div class="field full"><button class="btn" type="submit" '+(!refs.active_year?'disabled':'')+'>Enregistrer la fiche et l’inscription</button></div></form></section>':'<div class="notice">Les fiches et inscriptions sont consultables ici. Leur création manuelle est réservée à l’administrateur.</div>')+
- '<section class="panel"><div class="panelhead"><h2>Liste des élèves</h2><span>'+rows.length+' résultat(s)</span></div><div class="toolbar"><input class="search" id="studentSearch" placeholder="Rechercher par nom ou numéro…"><button class="btn secondary" id="searchStudents">Rechercher</button></div><div class="tablewrap"><table class="table"><thead><tr><th>N° élève</th><th>Nom complet</th><th>Section</th><th>Classe</th><th>Option</th><th>Décision</th></tr></thead><tbody id="studentRows">'+studentRows(rows)+'</tbody></table></div></section>';
- if(canManage){
-  $("enrollCategory").addEventListener("change",e=>{$("enrollClass").innerHTML='<option value="">Choisir…</option>'+classOptions(e.target.value);$("optionField").classList.toggle("hidden",refs.categories.find(x=>String(x.id)===e.target.value)?.code!=="HUMANITE");});
-  let adminSearchTimer=null;
-  $("adminStudentName").addEventListener("input",()=>{
-   clearTimeout(adminSearchTimer);$("adminStudentId").value="";$("adminStudentSuggestions").innerHTML="";$("enrollForm").querySelector('button[type="submit"]').disabled=!refs.active_year;
-   const term=$("adminStudentName").value.trim();if(term.length<2)return;
-   adminSearchTimer=setTimeout(async()=>{
-    try{
-     const found=(await api("/api/students/search?q="+encodeURIComponent(term))).students||[];
-     if(!found.length)return;
-     $("adminStudentSuggestions").innerHTML='<div class="muted">Fiches déjà présentes — sélectionnez si c’est le même élève :</div>'+found.map((s,i)=>'<button type="button" class="btn secondary" data-admin-student="'+i+'" style="margin:4px">'+esc(s.full_name)+' — '+esc(s.student_number)+' — '+esc(s.class_name||"Inscription à compléter")+'</button>').join("");
-     $("adminStudentSuggestions").querySelectorAll("[data-admin-student]").forEach(btn=>btn.addEventListener("click",()=>{
-      const s=found[Number(btn.dataset.adminStudent)];$("adminStudentName").value=s.full_name;$("adminStudentId").value=s.id;
-      $("adminStudentSuggestions").innerHTML='<div class="notice">'+(s.enrollment_id?"Cet élève possède déjà une inscription pour l’année active.":"Fiche existante sélectionnée : elle sera réutilisée, sans créer de doublon.")+'</div>';
-      $("enrollForm").querySelector('button[type="submit"]').disabled=!!s.enrollment_id;
-     }));
-    }catch(x){$("adminStudentSuggestions").textContent=x.message;}
-   },250);
-  });
-  $("enrollForm").addEventListener("submit",async e=>{e.preventDefault();const f=new FormData(e.target),body=Object.fromEntries(f.entries());body.student_id=body.student_id||null;body.category_id=Number(body.category_id);body.class_id=Number(body.class_id);body.option_id=body.option_id?Number(body.option_id):null;try{await api("/api/enrollments",{method:"POST",body:JSON.stringify(body)});message("Fiche et inscription enregistrées.");await renderStudents();}catch(x){message(x.message,"error");}});
- }
- $("searchStudents").addEventListener("click",async()=>{const d=await api("/api/students?q="+encodeURIComponent($("studentSearch").value));$("studentRows").innerHTML=studentRows(d.students||[]);});
+ const data=await api("/api/students"),rows=data.students||[];
+ const total=(arr,key)=>arr.reduce((sum,x)=>sum+Number(x[key]||0),0);
+ const studentRows=rows.map(s=>{
+  const fees=s.fee_balances||[],due=total(fees,"amount_due"),paid=total(fees,"amount_paid"),remaining=total(fees,"remaining_balance");
+  const state=due<=0?"À vérifier":remaining<=0?"Soldé":paid>0?"Partiel":"Non payé";
+  return '<tr><td>'+esc(s.student_number)+'</td><td><b>'+esc(s.full_name)+'</b></td><td>'+esc(s.category_name||"—")+'</td><td>'+esc(s.class_name||"—")+'</td><td>'+esc(s.option_name||"—")+'</td><td>'+money(paid,"USD")+'</td><td>'+money(remaining,"USD")+'</td><td><span class="tag '+(state==="Soldé"?"green":state==="Non payé"?"red":"")+'">'+state+'</span></td></tr>';
+ }).join("");
+ $("pageContent").innerHTML=heading("Répertoire financier des élèves","Fiches d’identification et situation des paiements pour l’année active.")+
+ '<section class="panel"><div class="panelhead"><div><h2>Fiches élèves</h2><p class="muted">Les fiches sont créées à la caisse lors du premier paiement et réutilisées pour les versements suivants.</p></div><span class="tag">'+esc(data.active_year?.label||"Aucune année active")+'</span></div>'+
+ '<div class="toolbar"><input class="search" id="studentSearch" placeholder="Rechercher par nom ou numéro…"><button class="btn secondary" id="searchStudents">Rechercher</button></div>'+
+ '<div class="tablewrap"><table class="table"><thead><tr><th>N° élève</th><th>Nom complet</th><th>Section</th><th>Classe</th><th>Option</th><th>Total payé</th><th>Solde restant</th><th>Situation</th></tr></thead><tbody id="studentRows">'+(studentRows||'<tr><td colspan="8" class="empty">Aucune fiche financière pour l’année active.</td></tr>')+'</tbody></table></div></section>';
+ $("searchStudents").addEventListener("click",async()=>{const d=await api("/api/students?q="+encodeURIComponent($("studentSearch").value));const found=d.students||[];$("studentRows").innerHTML=found.length?found.map(s=>{const fees=s.fee_balances||[],paid=total(fees,"amount_paid"),remaining=total(fees,"remaining_balance");return '<tr><td>'+esc(s.student_number)+'</td><td><b>'+esc(s.full_name)+'</b></td><td>'+esc(s.category_name||"—")+'</td><td>'+esc(s.class_name||"—")+'</td><td>'+esc(s.option_name||"—")+'</td><td>'+money(paid,"USD")+'</td><td>'+money(remaining,"USD")+'</td><td><span class="tag">'+(remaining<=0?"Soldé":paid>0?"Partiel":"Non payé")+'</span></td></tr>';}).join(""):'<tr><td colspan="8" class="empty">Aucun élève trouvé.</td></tr>';});
  $("studentSearch").addEventListener("keydown",e=>{if(e.key==="Enter")$("searchStudents").click();});
 }
-function studentRows(rows){return rows.length?rows.map(s=>'<tr><td>'+esc(s.student_number)+'</td><td><b>'+esc(s.full_name)+'</b></td><td>'+esc(s.category_name)+'</td><td>'+esc(s.class_name)+'</td><td>'+esc(s.option_name||"—")+'</td><td><span class="tag">'+esc(s.decision||"EN_ATTENTE")+'</span></td></tr>').join(""):'<tr><td colspan="6" class="empty">Aucun élève trouvé pour cette année scolaire.</td></tr>'}
 async function renderPayments(){
  const [d,sd]=await Promise.all([api("/api/payments"),api("/api/students")]);
  const isCashier=user.role==="CAISSIER";
@@ -660,6 +656,56 @@ function printLastTicket(){
  w.document.close();
 }
 
+
+async function renderHeadcounts(){
+ const years=refs.school_years||[];
+ const classes=refs.classes||[];
+ const options=(refs.options||[]).filter(x=>x.is_active);
+ const selected=refs.active_year?.id||years[0]?.id||"";
+ const yearOptions=years.map(y=>'<option value="'+y.id+'" '+(y.id===selected?'selected':'')+'>'+esc(y.label)+'</option>').join("");
+ const rows=[];
+ for(const cls of classes){
+  const cat=(refs.categories||[]).find(c=>c.id===cls.category_id);
+  if(cat?.code==="HUMANITE"){
+   for(const opt of options) rows.push({cls,opt});
+  } else rows.push({cls,opt:null});
+ }
+ $("pageContent").innerHTML=heading("Effectifs scolaires","Effectifs déclarés par l’établissement — indépendants des paiements.")+
+ '<section class="panel"><form id="headcountForm"><div class="formgrid">'+
+ '<label class="field"><span>Année scolaire</span><select id="headcountYear" required>'+yearOptions+'</select></label>'+
+ '<label class="field"><span>Effectif total déclaré</span><input id="hcTotal" type="number" min="0" required></label>'+
+ '<label class="field"><span>Nombre de garçons</span><input id="hcBoys" type="number" min="0" required></label>'+
+ '<label class="field"><span>Nombre de filles</span><input id="hcGirls" type="number" min="0" required></label>'+
+ '<label class="field full"><span>Observations (facultatif)</span><input id="hcNotes" maxlength="1000"></label></div>'+
+ '<div class="panelhead"><h2>Ventilation par classe et option</h2><p class="muted">Renseignez les garçons et les filles pour chaque ligne.</p></div>'+
+ '<div class="tablewrap"><table class="table"><thead><tr><th>Section</th><th>Classe</th><th>Option</th><th>Garçons</th><th>Filles</th><th>Total</th></tr></thead><tbody>'+
+ rows.map(r=>'<tr data-class="'+r.cls.id+'" data-option="'+(r.opt?.id||'')+'"><td>'+esc((refs.categories||[]).find(c=>c.id===r.cls.category_id)?.name||'')+'</td><td>'+esc(r.cls.name)+'</td><td>'+esc(r.opt?.name||'—')+'</td><td><input class="hc-boys" type="number" min="0" value="0" style="width:90px"></td><td><input class="hc-girls" type="number" min="0" value="0" style="width:90px"></td><td class="hc-total">0</td></tr>').join("")+
+ '</tbody></table></div><div class="toolbar" style="justify-content:flex-end;margin-top:16px"><button class="btn" type="submit">Enregistrer les effectifs</button></div></form></section>';
+ const load=async()=>{
+  const id=$("headcountYear").value;if(!id)return;
+  const d=await api("/api/admin/headcounts?school_year_id="+encodeURIComponent(id));
+  const h=d.headcount||{};$("hcTotal").value=h.total_students??"";$("hcBoys").value=h.total_boys??"";$("hcGirls").value=h.total_girls??"";$("hcNotes").value=h.notes||"";
+  const saved=new Map((d.classes||[]).map(x=>[x.class_id+":"+(x.option_id||""),x]));
+  document.querySelectorAll("#headcountForm tbody tr").forEach(tr=>{const x=saved.get(tr.dataset.class+":"+tr.dataset.option);tr.querySelector(".hc-boys").value=x?.boys??0;tr.querySelector(".hc-girls").value=x?.girls??0;tr.querySelector(".hc-total").textContent=Number(x?.boys||0)+Number(x?.girls||0);});
+ };
+ document.querySelectorAll(".hc-boys,.hc-girls").forEach(input=>input.addEventListener("input",()=>{const tr=input.closest("tr");tr.querySelector(".hc-total").textContent=Number(tr.querySelector(".hc-boys").value||0)+Number(tr.querySelector(".hc-girls").value||0);}));
+ $("headcountYear").addEventListener("change",()=>load().catch(e=>message(e.message,"error")));
+ $("headcountForm").addEventListener("submit",async e=>{e.preventDefault();const classes=[...document.querySelectorAll("#headcountForm tbody tr")].map(tr=>({class_id:Number(tr.dataset.class),option_id:tr.dataset.option?Number(tr.dataset.option):null,boys:Number(tr.querySelector(".hc-boys").value||0),girls:Number(tr.querySelector(".hc-girls").value||0)}));const body={school_year_id:$("headcountYear").value,total_students:Number($("hcTotal").value),total_boys:Number($("hcBoys").value),total_girls:Number($("hcGirls").value),notes:$("hcNotes").value||null,classes};try{await api("/api/admin/headcounts",{method:"PUT",body:JSON.stringify(body)});message("Effectifs enregistrés pour l’année sélectionnée.");}catch(x){message(x.message,"error");}});
+ $("pageContent").insertAdjacentHTML("beforeend",'<section class="panel"><div class="panelhead"><div><h2>Comparaison financière</h2><p class="muted">Effectifs déclarés, élèves ayant payé, montants attendus et recettes encaissées.</p></div><button class="btn secondary" id="loadHeadcountComparison">Afficher la comparaison</button></div><div id="headcountComparison"><div class="empty">Choisissez une année puis affichez la comparaison.</div></div></section>');
+ $("loadHeadcountComparison").addEventListener("click",async()=>{
+  const box=$("headcountComparison");box.innerHTML='<div class="empty">Calcul de la comparaison…</div>';
+  try{
+   const d=await api("/api/admin/headcounts/comparison?school_year_id="+encodeURIComponent($("headcountYear").value));
+   const t=d.totals||{};
+   const cards='<div class="cards cards-three"><article class="card"><div class="cardtop">Effectif déclaré</div><div class="value">'+Number(t.declared_students||0).toLocaleString("fr-FR")+'</div></article><article class="card"><div class="cardtop">Élèves ayant payé</div><div class="value">'+Number(t.students_paid||0).toLocaleString("fr-FR")+'</div></article><article class="card"><div class="cardtop">Montant attendu</div><div class="value">'+money(t.expected_usd,"USD")+'</div></article><article class="card"><div class="cardtop">Montant encaissé</div><div class="value">'+money(t.collected_usd,"USD")+'</div></article><article class="card"><div class="cardtop">Solde théorique</div><div class="value">'+money(t.remaining_usd,"USD")+'</div></article></div>';
+   const categoryRows=(d.by_category||[]).map(x=>'<tr><td><b>'+esc(x.category_name)+'</b></td><td>'+x.declared_students+'</td><td>'+x.declared_boys+'</td><td>'+x.declared_girls+'</td><td>'+x.students_paid+'</td><td>'+money(x.expected_usd,"USD")+'</td><td>'+money(x.collected_usd,"USD")+'</td><td>'+money(x.remaining_usd,"USD")+'</td></tr>').join("");
+   const classRows=(d.by_class||[]).map(x=>'<tr><td>'+esc(x.category_name)+'</td><td><b>'+esc(x.class_name)+'</b></td><td>'+x.declared_students+'</td><td>'+x.declared_boys+'</td><td>'+x.declared_girls+'</td><td>'+x.students_paid+'</td><td>'+money(x.expected_usd,"USD")+'</td><td>'+money(x.collected_usd,"USD")+'</td><td>'+money(x.remaining_usd,"USD")+'</td></tr>').join("");
+   box.innerHTML=cards+'<h3>Résumé par section</h3><div class="tablewrap"><table class="table"><thead><tr><th>Section</th><th>Effectif</th><th>Garçons</th><th>Filles</th><th>Ayant payé</th><th>Attendu</th><th>Encaissé</th><th>Solde</th></tr></thead><tbody>'+(categoryRows||'<tr><td colspan="8" class="empty">Aucune donnée.</td></tr>')+'</tbody></table></div><h3 style="margin-top:20px">Détail par classe</h3><div class="tablewrap"><table class="table"><thead><tr><th>Section</th><th>Classe</th><th>Effectif</th><th>Garçons</th><th>Filles</th><th>Ayant payé</th><th>Attendu</th><th>Encaissé</th><th>Solde</th></tr></thead><tbody>'+(classRows||'<tr><td colspan="9" class="empty">Aucune donnée.</td></tr>')+'</tbody></table></div><p class="muted" style="margin-top:12px">'+esc(d.note||"")+'</p>';
+  }catch(x){box.innerHTML='<div class="error">'+esc(x.message)+'</div>';}
+ });
+ if(user.role!=="ADMINISTRATEUR"){$("headcountForm").querySelectorAll("input,button").forEach(el=>el.disabled=true);$("headcountForm").querySelector("#headcountYear").disabled=false;$("loadHeadcountComparison").disabled=false;}
+ await load();
+}
 async function renderYears(){const d=await api("/api/admin/school-years");$("pageContent").innerHTML=heading("Années scolaires","Les dates sont calculées automatiquement selon le calendrier scolaire officiel.")+'<section class="panel"><div class="panelhead"><h2>Créer une année scolaire</h2></div><form id="yearForm" class="formgrid"><label class="field"><span>Année scolaire *</span><input name="label" placeholder="2026-2027" pattern="[0-9]{4}-[0-9]{4}" maxlength="9" required></label><div class="field full notice" id="yearDatePreview">Saisissez une année au format AAAA-AAAA pour afficher automatiquement les dates.</div><label class="field"><span><input type="checkbox" name="activate" value="true"> Activer dès la création</span></label><div class="field full"><button class="btn">Créer l’année scolaire et copier les tarifs de référence</button></div></form></section><section class="panel"><div class="panelhead"><h2>Années enregistrées</h2></div><div class="tablewrap"><table class="table"><thead><tr><th>Année</th><th>Début</th><th>Fin</th><th>Rentrée</th><th>Statut</th><th>Action</th></tr></thead><tbody>'+((d.school_years||[]).map(y=>'<tr><td>'+esc(y.label)+'</td><td>'+esc(y.start_date)+'</td><td>'+esc(y.end_date)+'</td><td>'+esc(y.opening_date)+'</td><td><span class="tag '+(y.is_active?'green':'')+'">'+(y.is_active?'Active':'Archive')+'</span></td><td>'+(y.is_active?'—':'<button class="btn secondary activateYear" data-id="'+y.id+'">Activer</button>')+'</td></tr>').join("")||'<tr><td colspan="6" class="empty">Aucune année créée.</td></tr>')+'</tbody></table></div></section>';
 const yearLabelInput=document.querySelector("#yearForm [name=label]");yearLabelInput.addEventListener("input",()=>{const m=yearLabelInput.value.match(/^(\d{4})-(\d{4})$/);const box=$("yearDatePreview");if(!m||Number(m[2])!==Number(m[1])+1){box.textContent="Format attendu : AAAA-AAAA (deux années consécutives).";return;}const y=Number(m[1]),next=Number(m[2]);const first=new Date(y,8,1);const open=new Date(y,8,1+((8-first.getDay())%7));let close=new Date(next,6,2);if(close.getDay()===6)close.setDate(4);else if(close.getDay()===0)close.setDate(3);const fmt=d=>d.toLocaleDateString("fr-FR",{weekday:"long",day:"2-digit",month:"long",year:"numeric"});box.textContent="Ouverture automatique : "+fmt(open)+" · Fermeture automatique : "+fmt(close)+". Si le 2 juillet tombe le week-end, report au lundi suivant.";});$("yearForm").addEventListener("submit",async e=>{e.preventDefault();const body=Object.fromEntries(new FormData(e.target).entries());body.activate=body.activate==="true";try{const r=await api("/api/admin/school-years",{method:"POST",body:JSON.stringify(body)});refs=await api("/api/references");message(r.message);await renderYears();}catch(x){message(x.message,"error");}});
 document.querySelectorAll(".activateYear").forEach(b=>b.addEventListener("click",async()=>{if(!confirm("Activer cette année scolaire ?"))return;try{await api("/api/admin/school-years/"+b.dataset.id+"/activate",{method:"POST"});refs=await api("/api/references");await renderYears();}catch(x){message(x.message,"error");}}));
@@ -676,10 +722,6 @@ async function renderTariffs(){const d=await api("/api/admin/tariffs");const act
 '<section class="panel"><div class="panelhead"><h2>Tarifs de l’année '+esc(refs.active_year?.label||"non définie")+'</h2><span>'+list.length+' tarif(s)</span></div><div class="tablewrap"><table class="table"><thead><tr><th>Frais</th><th>Classe</th><th>Montant</th><th>Devise</th><th>Statut</th><th>Modification</th></tr></thead><tbody>'+list.map(t=>'<tr><td>'+esc(ft(t.fee_type_id))+'</td><td>'+esc(cl(t.class_id))+'</td><td>'+money(t.amount,"")+'</td><td>'+esc(t.currency)+'</td><td>'+ (t.is_active?'Actif':'Inactif')+'</td><td><button class="btn secondary editTariff" data-id="'+t.id+'" data-amount="'+t.amount+'" data-active="'+t.is_active+'">Modifier</button></td></tr>').join("")+'</tbody></table></div></section>';
 document.querySelectorAll(".editTariff").forEach(b=>b.addEventListener("click",async()=>{const amount=prompt("Nouveau montant :",b.dataset.amount);if(amount===null)return;const active=confirm("Laisser ce tarif actif ? OK = oui, Annuler = non");try{await api("/api/admin/tariffs/"+b.dataset.id,{method:"PATCH",body:JSON.stringify({amount:Number(amount),is_active:active})});refs=await api("/api/references");await renderTariffs();}catch(x){message(x.message,"error");}}));
 }
-async function renderDecisions(){const d=await api("/api/students");$("pageContent").innerHTML=heading("Décisions & promotions","Validation des décisions de fin d’année par l’administrateur.")+'<div class="notice">Les décisions possibles sont PROMU, REDOUBLE, SORTANT et FIN_CYCLE (uniquement en quatrième humanité). La liste est limitée aux élèves de l’année actuellement active.</div><section class="panel"><div class="tablewrap"><table class="table"><thead><tr><th>Élève</th><th>Classe</th><th>Décision actuelle</th><th>Nouvelle décision</th></tr></thead><tbody>'+d.students.map(s=>'<tr><td>'+esc(s.full_name)+'</td><td>'+esc(s.class_name)+'</td><td>'+esc(s.decision)+'</td><td><select class="decisionSelect" data-id="'+s.enrollment_id+'"><option value="">Choisir…</option><option>PROMU</option><option>REDOUBLE</option><option>SORTANT</option><option>FIN_CYCLE</option></select><button class="btn secondary saveDecision" data-id="'+s.enrollment_id+'">Valider</button></td></tr>').join("")+'</tbody></table></div></section>';
-document.querySelectorAll(".saveDecision").forEach(b=>b.addEventListener("click",async()=>{const select=document.querySelector('.decisionSelect[data-id="'+b.dataset.id+'"]');if(!select.value)return message("Choisissez une décision.","error");if(!confirm("Confirmer la décision "+select.value+" ?"))return;try{await api("/api/admin/enrollments/"+b.dataset.id+"/decision",{method:"PATCH",body:JSON.stringify({decision:select.value})});message("Décision enregistrée.");}catch(x){message(x.message,"error");}}));
-}
-
 async function renderArchive(){
  const refsData=await api("/api/archive");
  const state={year:"",category:"",classId:"",option:"",student:"",data:null};

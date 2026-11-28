@@ -1,173 +1,168 @@
 # Cahier des charges — GESTION BÉATRICE
 
-**Version :** 0.4 — rôles et validation des décisions de passage précisés  
-**Statut :** document de cadrage évolutif
+**Version :** 0.5 — recentrage confirmé sur la gestion financière scolaire  
+**Statut :** orientation fonctionnelle validée ; implémentation à réaliser progressivement
 
 ## 1. Objectif général
 
-Mettre en place une application permettant d'enregistrer et de suivre les paiements des frais scolaires, de conserver l'historique des versements et de donner aux responsables une vue fiable sur les recettes et les soldes.
+GESTION BÉATRICE est une application de **gestion financière scolaire**. Elle sert à enregistrer les frais encaissés, suivre les paiements partiels, calculer les soldes, produire les tickets, consulter les recettes et comparer les encaissements aux effectifs réels communiqués par l'administration.
 
-## 2. Profils et responsabilités
+L'application n'est pas un logiciel de gestion académique ou de gestion pédagogique des élèves.
 
-L'application distingue trois profils : **ADMINISTRATEUR**, **PRÉFET** et **CAISSIER**. Chaque profil dispose uniquement des permissions correspondant à ses responsabilités.
+## 2. Périmètre fonctionnel validé
 
-### 2.1 Administrateur
+### 2.1 Fonctions conservées
 
-L'administrateur assure l'administration de l'application et la validation annuelle des décisions de passage des élèves. Il peut :
-- créer les comptes du préfet et des caissiers ;
-- modifier les informations des comptes, désactiver ou réactiver un compte ;
-- consulter les activités et les opérations effectuées par les utilisateurs ;
-- configurer les années scolaires et les jours fériés ;
-- créer et gérer la grille tarifaire de chaque année scolaire ;
-- consulter les élèves, les paiements et l'ensemble des recettes ;
-- après la proclamation des résultats, valider individuellement la décision de chaque élève pour l'année scolaire suivante : PROMU, REDOUBLE ou SORTANT ; la fin de cycle est enregistrée pour un élève qui termine la quatrième humanité.
+- Gestion des comptes et des rôles ADMINISTRATEUR, PRÉFET et CAISSIER.
+- Paramétrage des années scolaires et des tarifs.
+- Enregistrement des paiements complets ou partiels.
+- Identification minimale des élèves nécessaire à la caisse.
+- Recherche et réutilisation d'une fiche élève existante pendant toute l'année scolaire.
+- Consultation du cumul payé et du solde par type de frais.
+- Historique des paiements, tickets, rectifications et traçabilité.
+- Tableaux de bord, rapports financiers et archives annuelles.
+- Saisie administrative des effectifs réels par année, section et classe, avec distinction filles/garçons.
+
+### 2.2 Fonctions exclues
+
+L'application ne doit plus assurer :
+- les inscriptions scolaires ou académiques comme processus de gestion autonome ;
+- les décisions de fin d'année (promu, redouble, sortant, fin de cycle) ;
+- les promotions ou redoublements automatiques ou manuels ;
+- les saisies de notes, résultats ou autres données pédagogiques ;
+- le suivi du parcours académique de l'élève.
+
+Les données de classe et de section restent utilisables comme **repères de classement financier** pour appliquer les tarifs, filtrer les rapports et comparer les paiements aux effectifs. Elles ne constituent pas une inscription académique.
+
+## 3. Profils et responsabilités
+
+### 3.1 Administrateur
+
+L'administrateur peut :
+- créer, modifier, désactiver et réactiver les comptes autorisés ;
+- consulter les activités, élèves, paiements, recettes et soldes ;
+- configurer les années scolaires, jours fériés et grilles tarifaires ;
+- saisir et corriger les effectifs globaux et détaillés par année, section et classe ;
+- consulter les tableaux comparatifs entre effectifs déclarés, paiements et soldes.
 
 L'administrateur ne réalise pas les opérations de caisse et ne modifie ni ne supprime directement les paiements.
 
-### 2.2 Préfet
+### 3.2 Préfet
 
-Le préfet assure la supervision pédagogique et financière de l'établissement. Il peut :
-- consulter les élèves, leurs inscriptions et les décisions de passage validées par l'administrateur ;
-- consulter tous les paiements, toutes les recettes et tous les soldes ;
-- superviser l'ensemble des caissiers ;
-- consulter les archives scolaires ;
-- supprimer un paiement uniquement avec un motif obligatoire et une traçabilité complète.
+Le préfet supervise les opérations financières. Il peut consulter les élèves, les paiements, recettes, soldes, rapports et archives, et exercer les droits de correction/suppression de paiements déjà définis dans les règles de contrôle et d'audit.
 
-Le préfet ne valide pas les décisions de passage en classe supérieure et ne modifie pas les paiements.
+Le préfet ne gère pas les inscriptions, les décisions ni les promotions.
 
-### 2.3 Caissier
+### 3.3 Caissier
 
-Le caissier travaille au guichet. Il peut :
-- rechercher un élève inscrit pour l'année scolaire active ;
-- enregistrer les versements et imprimer les tickets ;
-- consulter ses propres paiements et ses propres recettes ;
-- rectifier ses propres paiements, avec conservation des anciennes et nouvelles valeurs.
+Le caissier recherche une fiche élève existante, enregistre les versements, imprime les tickets et consulte les opérations autorisées. Il peut créer une fiche minimale lorsqu'aucune fiche n'existe au moment du premier paiement.
 
-Le caissier ne peut ni supprimer un paiement, ni valider une décision de passage, ni administrer les comptes utilisateurs.
+Le caissier ne gère ni les effectifs administratifs, ni les comptes utilisateurs, ni les décisions académiques.
 
-## 3. Organisation scolaire
+## 4. Identification minimale des élèves à la caisse
 
-Les catégories et classes sont prédéfinies dans l'application.
+La base des élèves est conservée uniquement pour identifier les payeurs et rattacher correctement leurs paiements.
 
-| Catégorie | Classes |
+Au premier paiement de l'année, si aucune fiche correspondante n'existe, le caissier crée une fiche minimale avec les informations nécessaires à l'identification et à la tarification (nom, section, classe et option si applicable).
+
+Lorsqu'un élève revient payer un autre frais ou compléter un paiement, le caissier saisit son nom : le système propose les fiches correspondantes. Après sélection, il retrouve notamment :
+- les frais scolaires déjà payés et le solde restant ;
+- les frais techniques déjà payés et le solde restant ;
+- les frais orgamat déjà payés et le solde restant ;
+- les autres paiements de l'année et leur historique.
+
+Le système doit réutiliser la fiche existante et empêcher la création involontaire d'un doublon. En cas d'homonymie, il présente plusieurs candidats clairement différenciés ; il ne fusionne jamais automatiquement des personnes.
+
+Il n'existe plus de processus autonome d'inscription ou de validation d'inscription. La création d'une fiche au premier paiement est une opération d'identification nécessaire à la caisse.
+
+## 5. Organisation des sections et classes
+
+Les sections et classes servent au classement des paiements, à l'application des tarifs et à la production des rapports.
+
+| Section | Classes |
 |---|---|
-| Maternelle | Première maternelle, Deuxième maternelle, Troisième maternelle |
-| Primaire | Première primaire, Deuxième primaire, Troisième primaire, Quatrième primaire, Cinquième primaire, Sixième primaire, Septième primaire, Huitième primaire |
-| Humanité | Première humanité, Deuxième humanité, Troisième humanité, Quatrième humanité |
+| Maternelle | Première, deuxième et troisième maternelle |
+| Primaire | Première à huitième primaire |
+| Humanités | Première à quatrième humanité |
 
-Chaque élève doit obligatoirement être associé à une catégorie et à une classe. La liste des classes proposée doit dépendre de la catégorie sélectionnée.
+Pour les humanités, l'option peut être conservée comme information de classement et de tarification lorsqu'elle est applicable. Elle ne constitue pas un dossier pédagogique.
 
-### 3.1 Options du humanités
+## 6. Effectifs scolaires déclarés par l'administration
 
-Pour les élèves des humanités, l'option doit être enregistrée avec la classe. Les options communiquées sont :
-1. Pédagogique
-2. Scientifique
-3. Coupe et couture
-4. Commerciale et gestion
-5. Latin philo
-6. Mécanique
-7. Électricité
-8. Construction
+Un module **Effectifs scolaires** doit permettre à l'administrateur de saisir manuellement, pour chaque année scolaire :
+- l'effectif total de l'établissement ;
+- les effectifs par section ;
+- les effectifs par classe ;
+- le nombre de garçons et le nombre de filles pour chaque niveau de détail.
 
-Ces options concernent les quatre classes du humanités. Leur caractère obligatoire pour chaque inscription humanités reste à confirmer.
+Les totaux doivent être calculés et contrôlés par l'application. Les valeurs saisies doivent être conservées par année scolaire afin de permettre les comparaisons historiques. Les effectifs ne doivent pas être déduits du nombre de fiches d'élèves ou de paiements, car ils sont communiqués par l'établissement et peuvent inclure des élèves qui n'ont pas encore payé.
 
-## 4. Types de frais et tarifs
+Les tableaux de bord financiers doivent pouvoir rapprocher, sans les confondre :
+- l'effectif réel déclaré ;
+- le nombre d'élèves ayant effectué au moins un paiement ;
+- les montants attendus selon les tarifs applicables et les effectifs ;
+- les montants encaissés ;
+- les soldes restant à recouvrer, selon les règles de calcul validées.
 
-Les types de frais prédéfinis sont :
-- Frais scolaires
-- Frais techniques
-- Frais orgamat
+Toute formule de calcul des montants attendus doit s'appuyer sur les tarifs et effectifs enregistrés ; aucune estimation ne doit être présentée comme un encaissement réel.
 
-### Grille tarifaire communiquée
+## 7. Types de frais et tarifs
 
-Les tarifs sont exprimés dans deux devises, selon le type de frais :
+Les codes techniques existants doivent rester inchangés : `SCOLAIRES`, `TECHNIQUES` et `ORGAMAT`.
 
-| Catégorie / classe | Frais scolaires |
-|---|---:|
-| Première, deuxième et troisième maternelle | 210 USD |
-| Première à huitième primaire | 170 USD |
-| Première, deuxième et troisième humanité | 180 USD |
-| Quatrième humanité | 220 USD |
+Les tarifs restent configurables par année scolaire, section/classe, option si applicable et type de frais. Les tarifs historiques ne sont jamais modifiés rétroactivement.
 
-Les autres frais sont uniformes pour les 15 classes :
-- Frais techniques : 30 USD par élève.
-- Frais orgamat : 7 000 CDF par élève.
+La grille tarifaire de référence précédemment communiquée demeure à confirmer/maintenir dans le paramétrage existant ; aucune migration ne doit recréer, écraser ou recalculer les tarifs déjà enregistrés.
 
-Les frais techniques et orgamat sont distincts des frais scolaires et peuvent être suivis séparément. La grille de référence sera automatiquement copiée dans les tarifs de chaque nouvelle année scolaire lors de sa création. Cette reconduction est le comportement normal : elle évite de ressaisir les tarifs chaque année et conserve un historique indépendant par année scolaire. Avant l'ouverture de l'année, un préfet ou un administrateur habilité pourra modifier les tarifs de cette année si l'établissement adopte une nouvelle grille. Ces ajustements ne modifieront ni la grille de référence ni les tarifs des années déjà enregistrées. Si aucune modification n'est décidée, les tarifs copiés resteront applicables.
+## 8. Paiements partiels, soldes et tickets
 
-Pour les humanités, les tarifs communiqués sont identiques quelle que soit l'option ; le modèle de données permet néanmoins une différenciation par option si une décision future le demande.
+Chaque versement est conservé comme une opération distincte, associé à l'élève, au type de frais, à l'année scolaire et au caissier qui l'a enregistré.
 
-## 5. Élèves et identification
-
-Pour la première version, il n'y a pas de préinscription complète des élèves. Lors du premier paiement, le caissier saisit le nom de l'élève et sélectionne sa catégorie, sa classe et, pour le humanités, son option.
-
-La recherche se fait par nom. Pour éviter de créer plusieurs fiches pour un même élève, un mécanisme d'identification complémentaire pourra être défini. Le nom seul peut être insuffisant en cas d'homonymie ; aucun champ supplémentaire obligatoire n'est imposé à ce stade.
-
-Lorsqu'aucun dossier correspondant n'est trouvé, l'application doit afficher un message prudent, par exemple :
-
-> Aucun enregistrement de paiement ne correspond à ce nom. Veuillez vérifier l'orthographe ou procéder à un nouvel enregistrement si nécessaire.
-
-L'absence de dossier dans l'application signifie qu'aucun paiement n'y est enregistré ; elle ne prouve pas à elle seule que l'élève n'a jamais payé.
-
-## 6. Enregistrement des paiements
-
-Parcours prévu au guichet :
-1. Saisir le nom de l'élève.
-2. Sélectionner la catégorie.
-3. Sélectionner la classe correspondante.
-4. Sélectionner l'option si l'élève est au humanités.
-5. Sélectionner le type de frais.
-6. Saisir le montant réellement reçu.
-7. Valider le paiement.
-8. Enregistrer le versement et actualiser le solde.
-9. Imprimer le ticket.
-
-## 7. Paiements partiels et soldes
-
-Le paiement peut être inférieur au tarif de référence. L'application doit conserver chaque versement et calculer :
-- le montant total dû ;
-- le montant cumulé payé ;
+L'application calcule pour chaque frais :
+- le montant dû selon le tarif applicable ;
+- le cumul des versements valides ;
 - le solde restant.
 
-Exemple illustratif : montant dû de 50 000 FC, versement de 20 000 FC, solde de 30 000 FC. Les versements ultérieurs doivent être ajoutés à l'historique du même élève et du même frais concerné.
+Les paiements en CDF et USD conservent la devise, le montant et le taux appliqué au moment de l'opération. Les anciens paiements ne sont jamais recalculés avec un nouveau taux de change.
 
-## 8. Tickets
+Chaque paiement validé produit une référence/ticket unique. Les rectifications et annulations suivent les règles de traçabilité déjà définies ; aucune opération financière ne doit être effacée silencieusement.
 
-Un ticket doit pouvoir être imprimé après l'enregistrement d'un paiement. Les champs exacts à afficher (numéro, date, identité, classe, option, type de frais, montant reçu, solde, caissier, etc.) restent à valider.
+## 9. Nouvelle année scolaire et archives
 
-## 9. Tableaux de bord et recherche
+À l'ouverture d'une nouvelle année scolaire :
+- les paiements de l'année précédente restent consultables dans les archives ;
+- les fiches d'identification des élèves sont conservées et peuvent être retrouvées ;
+- les nouveaux paiements sont rattachés à la nouvelle année et ne sont jamais mélangés aux paiements antérieurs ;
+- les effectifs de la nouvelle année sont saisis séparément par l'administration ;
+- les paramètres annuels nécessaires à la caisse sont préparés pour la nouvelle année.
 
-Les préfets et les caissiers doivent pouvoir rechercher les élèves par nom et consulter les paiements enregistrés. Les tableaux de bord devront présenter les informations financières utiles à leurs responsabilités, notamment les recettes, les versements et les soldes.
+Aucune décision de promotion, de redoublement ou de sortie n'est enregistrée par l'application. La classe utilisée pour les paiements de la nouvelle année est renseignée selon les informations communiquées par l'établissement, sans automatisme de passage de classe.
 
-Les règles précises de calcul des recettes, les filtres (période, classe, catégorie, type de frais) et les rapports à imprimer seront détaillés ultérieurement.
+Les archives financières annuelles sont en lecture seule et préservent les tickets et historiques.
 
-## 10. Architecture technique retenue
+## 10. Tableaux de bord, rapports et archivage
+
+Les écrans de supervision sont orientés vers les finances : recettes par période, type de frais, section, classe et caissier ; montants dus, montants payés, soldes et comparaisons avec les effectifs déclarés.
+
+Un seul espace **Archivage** regroupe la consultation annuelle des paiements. Les filtres et présentations détaillés sont définis dans les décisions fonctionnelles déjà validées.
+
+## 11. Architecture et protection des données
 
 - **GitHub :** dépôt du code source.
 - **Supabase :** base de données PostgreSQL centralisée.
 - **Render :** hébergement de l'application.
 
-Les clés et mots de passe devront rester dans les variables d'environnement et ne jamais être commis dans GitHub.
+Les clés et mots de passe restent dans les variables d'environnement. Les règles d'accès doivent être vérifiées côté serveur et en base de données. Aucune donnée financière historique ne peut être supprimée lors du retrait des fonctions académiques.
 
-## 11. Principes de fiabilité à respecter
+## 12. Règles de migration et de mise en production
 
-- Conserver l'historique des versements partiels.
-- Ne pas effacer silencieusement les opérations financières.
-- Associer chaque paiement au caissier qui l'a enregistré.
-- Prévoir une référence unique pour chaque paiement ou ticket.
-- Contrôler les accès selon le rôle.
-- Protéger les données et les secrets de connexion.
+La refonte doit être réalisée progressivement, sur une branche de travail et testée avant fusion et déploiement.
 
-## 12. Points restant à définir
+- Ne pas supprimer physiquement les élèves, paiements, tickets, tarifs ou archives existants.
+- Ne pas supprimer une table ou une colonne historique tant qu'il existe des dépendances ou des données à préserver.
+- Retirer d'abord les interfaces et opérations académiques, puis adapter le modèle de données uniquement après audit des dépendances.
+- Toute migration doit être additive ou réversible autant que possible, documentée et testée sur les données de test.
+- Vérifier les parcours de recherche d'élève, paiement partiel, second paiement, consultation de l'historique, ticket, archives et effectifs.
+- Ne mettre en production qu'après vérification des tests et contrôle de l'intégrité des données.
 
-- Date d'application initiale de la grille tarifaire (à confirmer). La reconduction automatique annuelle est validée ; les modifications des tarifs annuels relèvent de l'administrateur.
-- Champs d'identification supplémentaires pour distinguer les homonymes.
-- Processus technique de rectification en caisse et de suppression par le préfet avec motif obligatoire.
-- Écran, calendrier et procédure de validation individuelle des décisions de passage par l'administrateur après la proclamation du 2 juillet.
-- Définir précisément les règles de passage automatique de classe après validation : promotion à la classe suivante, redoublement dans la même classe, sortie sans réinscription et fin de cycle après la quatrième humanité.
-- Contenu et format du ticket.
-- Rapports, filtres et périodes de consultation.
-- Confirmation du caractère obligatoire de l'option pour tous les élèves des humanités.
-- Politique de sauvegarde et de restauration.
-
-Ce document sera complété au fur et à mesure des décisions validées. Aucune règle non confirmée ne doit être considérée comme définitive.
+Ce cahier des charges remplace les passages antérieurs qui prévoyaient la gestion des inscriptions, décisions et promotions. Les règles financières et de conservation des archives restent applicables.
