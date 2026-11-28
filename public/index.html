@@ -690,9 +690,9 @@ async function renderHeadcounts(){
  $("pageContent").innerHTML=heading("Effectifs scolaires","Effectifs déclarés par l’établissement — indépendants des paiements.")+
  '<section class="panel"><form id="headcountForm"><div class="formgrid">'+
  '<label class="field"><span>Année scolaire</span><select id="headcountYear" required>'+yearOptions+'</select></label>'+
- '<label class="field"><span>Effectif total déclaré</span><input id="hcTotal" type="number" min="0" required></label>'+
- '<label class="field"><span>Nombre de garçons</span><input id="hcBoys" type="number" min="0" required></label>'+
- '<label class="field"><span>Nombre de filles</span><input id="hcGirls" type="number" min="0" required></label>'+
+ '<label class="field"><span>Effectif total de l’établissement</span><input id="hcTotal" type="number" min="0" value="0" readonly required></label>'+
+ '<label class="field"><span>Total des garçons</span><input id="hcBoys" type="number" min="0" value="0" readonly required></label>'+
+ '<label class="field"><span>Total des filles</span><input id="hcGirls" type="number" min="0" value="0" readonly required></label>'+
  '<label class="field full"><span>Observations (facultatif)</span><input id="hcNotes" maxlength="1000"></label></div>'+
  '<div class="panelhead"><h2>Ventilation par classe et option</h2><p class="muted">Renseignez les garçons et les filles pour chaque ligne.</p></div>'+
  '<div class="tablewrap"><table class="table"><thead><tr><th>Section</th><th>Classe</th><th>Option</th><th>Garçons</th><th>Filles</th><th>Total</th></tr></thead><tbody>'+
@@ -701,13 +701,27 @@ async function renderHeadcounts(){
  const load=async()=>{
   const id=$("headcountYear").value;if(!id)return;
   const d=await api("/api/admin/headcounts?school_year_id="+encodeURIComponent(id));
-  const h=d.headcount||{};$("hcTotal").value=h.total_students??"";$("hcBoys").value=h.total_boys??"";$("hcGirls").value=h.total_girls??"";$("hcNotes").value=h.notes||"";
+  const h=d.headcount||{};$("hcNotes").value=h.notes||"";
   const saved=new Map((d.classes||[]).map(x=>[x.class_id+":"+(x.option_id||""),x]));
-  document.querySelectorAll("#headcountForm tbody tr").forEach(tr=>{const x=saved.get(tr.dataset.class+":"+tr.dataset.option);tr.querySelector(".hc-boys").value=x?.boys??0;tr.querySelector(".hc-girls").value=x?.girls??0;tr.querySelector(".hc-total").textContent=Number(x?.boys||0)+Number(x?.girls||0);});
+  document.querySelectorAll("#headcountForm tbody tr").forEach(tr=>{const x=saved.get(tr.dataset.class+":"+tr.dataset.option);tr.querySelector(".hc-boys").value=x?.boys??0;tr.querySelector(".hc-girls").value=x?.girls??0;});
+  updateHeadcountTotals();
  };
- document.querySelectorAll(".hc-boys,.hc-girls").forEach(input=>input.addEventListener("input",()=>{const tr=input.closest("tr");tr.querySelector(".hc-total").textContent=Number(tr.querySelector(".hc-boys").value||0)+Number(tr.querySelector(".hc-girls").value||0);}));
+ function updateHeadcountTotals(){
+  let boys=0,girls=0;
+  document.querySelectorAll("#headcountForm tbody tr").forEach(tr=>{
+   const rowBoys=Math.max(0,Number(tr.querySelector(".hc-boys").value||0));
+   const rowGirls=Math.max(0,Number(tr.querySelector(".hc-girls").value||0));
+   boys+=rowBoys;girls+=rowGirls;
+   tr.querySelector(".hc-total").textContent=String(rowBoys+rowGirls);
+  });
+  $("hcBoys").value=String(boys);
+  $("hcGirls").value=String(girls);
+  $("hcTotal").value=String(boys+girls);
+ }
+ document.querySelectorAll(".hc-boys,.hc-girls").forEach(input=>input.addEventListener("input",updateHeadcountTotals));
+ updateHeadcountTotals();
  $("headcountYear").addEventListener("change",()=>load().catch(e=>message(e.message,"error")));
- $("headcountForm").addEventListener("submit",async e=>{e.preventDefault();const classes=[...document.querySelectorAll("#headcountForm tbody tr")].map(tr=>({class_id:Number(tr.dataset.class),option_id:tr.dataset.option?Number(tr.dataset.option):null,boys:Number(tr.querySelector(".hc-boys").value||0),girls:Number(tr.querySelector(".hc-girls").value||0)}));const body={school_year_id:$("headcountYear").value,total_students:Number($("hcTotal").value),total_boys:Number($("hcBoys").value),total_girls:Number($("hcGirls").value),notes:$("hcNotes").value||null,classes};try{await api("/api/admin/headcounts",{method:"PUT",body:JSON.stringify(body)});message("Effectifs enregistrés pour l’année sélectionnée.");}catch(x){message(x.message,"error");}});
+ $("headcountForm").addEventListener("submit",async e=>{e.preventDefault();const classes=[...document.querySelectorAll("#headcountForm tbody tr")].map(tr=>({class_id:Number(tr.dataset.class),option_id:tr.dataset.option?Number(tr.dataset.option):null,boys:Number(tr.querySelector(".hc-boys").value||0),girls:Number(tr.querySelector(".hc-girls").value||0)}));updateHeadcountTotals();const body={school_year_id:$("headcountYear").value,total_students:Number($("hcTotal").value),total_boys:Number($("hcBoys").value),total_girls:Number($("hcGirls").value),notes:$("hcNotes").value||null,classes};try{await api("/api/admin/headcounts",{method:"PUT",body:JSON.stringify(body)});message("Effectifs enregistrés pour l’année sélectionnée.");}catch(x){message(x.message,"error");}});
  $("pageContent").insertAdjacentHTML("beforeend",'<section class="panel"><div class="panelhead"><div><h2>Comparaison financière</h2><p class="muted">Effectifs déclarés, élèves ayant payé, montants attendus et recettes encaissées.</p></div><button class="btn secondary" id="loadHeadcountComparison">Afficher la comparaison</button></div><div id="headcountComparison"><div class="empty">Choisissez une année puis affichez la comparaison.</div></div></section>');
  $("loadHeadcountComparison").addEventListener("click",async()=>{
   const box=$("headcountComparison");box.innerHTML='<div class="empty">Calcul de la comparaison…</div>';
