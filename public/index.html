@@ -162,7 +162,7 @@ async function renderPayments(){
  const isCashier=user.role==="CAISSIER";
  let selectedStudent=null,currentFees=[];
  const feeTypeName=id=>(refs.fee_types||[]).find(x=>String(x.id)===String(id))?.name||"Frais";
- const feeLabel=f=>esc(f.fee_type_name)+" — dû "+money(f.amount_due,"USD")+", payé "+money(f.amount_paid,"USD")+", reste "+money(f.remaining_balance,"USD");
+ const feeLabel=f=>Number(f.amount_paid)>0?esc(f.fee_type_name)+" — SOLDE : "+money(f.remaining_balance,"USD")+" (dû "+money(f.amount_due,"USD")+", déjà payé "+money(f.amount_paid,"USD")+")":esc(f.fee_type_name)+" — dû "+money(f.amount_due,"USD")+", payé 0 USD, reste "+money(f.remaining_balance,"USD");
  const buildNewFees=()=>{
   const cat=$("paymentCategory")?.value,cls=$("paymentClass")?.value;
   if(!cat||!cls)return [];
