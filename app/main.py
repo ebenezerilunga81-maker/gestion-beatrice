@@ -1003,8 +1003,13 @@ def compare_school_headcounts(
         "class_id,boys,girls"
     ).eq("school_year_id", str(school_year_id)).execute().data or []
     headcount_by_class = {}
+    boys_by_class = {}
+    girls_by_class = {}
     for row in declared:
-        headcount_by_class[row["class_id"]] = headcount_by_class.get(row["class_id"], 0) + row["boys"] + row["girls"]
+        cid = row["class_id"]
+        headcount_by_class[cid] = headcount_by_class.get(cid, 0) + row["boys"] + row["girls"]
+        boys_by_class[cid] = boys_by_class.get(cid, 0) + row["boys"]
+        girls_by_class[cid] = girls_by_class.get(cid, 0) + row["girls"]
 
     tariffs = client.table("fee_tariffs").select(
         "id,fee_type_id,class_id,amount,currency"
@@ -1035,8 +1040,8 @@ def compare_school_headcounts(
 
     result = []
     category_totals = {}
-    totals = {"declared_students": 0, "students_paid": 0,
-              "expected_usd": Decimal("0"), "collected_usd": Decimal("0")}
+    totals = {"declared_students": 0, "declared_boys": 0, "declared_girls": 0,
+              "students_paid": 0, "expected_usd": Decimal("0"), "collected_usd": Decimal("0")}
     for cls in classes:
         class_id = cls["id"]
         declared_count = headcount_by_class.get(class_id, 0)
@@ -1065,6 +1070,8 @@ def compare_school_headcounts(
             "class_name": cls["name"],
             "category_name": categories.get(cls["category_id"], "—"),
             "declared_students": declared_count,
+            "declared_boys": boys_by_class.get(class_id, 0),
+            "declared_girls": girls_by_class.get(class_id, 0),
             "students_paid": paid_count,
             "expected_usd": str(expected_class),
             "collected_usd": str(collected_class),
@@ -1074,14 +1081,19 @@ def compare_school_headcounts(
         result.append(row)
         category = row["category_name"]
         aggregate = category_totals.setdefault(category, {
-            "category_name": category, "declared_students": 0, "students_paid": 0,
+            "category_name": category, "declared_students": 0, "declared_boys": 0,
+            "declared_girls": 0, "students_paid": 0,
             "expected_usd": Decimal("0"), "collected_usd": Decimal("0"),
         })
         aggregate["declared_students"] += declared_count
+        aggregate["declared_boys"] += boys_by_class.get(class_id, 0)
+        aggregate["declared_girls"] += girls_by_class.get(class_id, 0)
         aggregate["students_paid"] += paid_count
         aggregate["expected_usd"] += expected_class
         aggregate["collected_usd"] += collected_class
         totals["declared_students"] += declared_count
+        totals["declared_boys"] += boys_by_class.get(class_id, 0)
+        totals["declared_girls"] += girls_by_class.get(class_id, 0)
         totals["students_paid"] += paid_count
         totals["expected_usd"] += expected_class
         totals["collected_usd"] += collected_class
