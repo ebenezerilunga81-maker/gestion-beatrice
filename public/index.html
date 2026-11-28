@@ -84,19 +84,14 @@ canvas,svg{max-width:100%}
 
 
 /* Tableau de bord caisse — analytics et navigation */
-.side-logout{display:flex;align-items:center;gap:10px;width:100%;margin:24px 0 12px;padding:17px 13px 11px;border:0;border-top:1px solid #ffffff30;border-radius:0;background:transparent;color:#f3f7fc;text-align:left;font-size:12px;font-weight:700;cursor:pointer;transition:background .18s ease,transform .18s ease,border-color .18s ease}.side-logout span{width:24px;font-size:16px}.side-logout:hover{background:#ffffff20;border-color:#ffffff55;transform:translateX(3px)}
-.cashier-search-panel{background:linear-gradient(110deg,#f2f7fe,#fff 70%);border:1px solid #d8e7f7;border-left:4px solid #4e8ac7}.cashier-search-panel .search{max-width:560px;background:#fff}
-.dashboard-search-results{margin-top:12px}
-.dashboard-results-heading{display:flex;justify-content:space-between;align-items:center;margin:8px 0;color:#27496d;font-size:12px;font-weight:750}
-.dashboard-results-heading span{color:#718096;font-size:11px;font-weight:500}
-.dashboard-results-table{min-width:520px}
-.dashboard-results-table th{background:#eaf3fd;color:#315b86}
-.dashboard-results-table tbody tr:hover{background:#f0f6fd}
-.dashboard-results-table .btn{white-space:nowrap;padding:7px 12px}
-.dashboard-search-history{margin-top:14px;border-top:1px solid #e4ebf3;padding-top:14px}
-.dashboard-search-history:empty{display:none}.cashier-analytics-grid{display:grid;grid-template-columns:minmax(0,1.4fr) minmax(300px,.9fr);gap:16px;align-items:start;margin-bottom:16px}.cashier-class-panel{min-width:0}.cashier-class-table{min-width:620px}.cashier-class-table th{background:#eaf3fd;color:#315b86}.cashier-class-table tbody tr{transition:background .2s ease,box-shadow .2s ease}.cashier-class-table tbody tr:nth-child(even){background:#f7faff}.cashier-class-table tbody tr:hover{background:#e7f1fd;box-shadow:inset 3px 0 #4e8ac7}.cashier-side-analytics{display:grid;gap:0}.cashier-side-analytics .panel{min-width:0}.class-bars{display:grid;gap:15px}.class-bar-row>div:first-child{display:flex;justify-content:space-between;gap:10px;margin-bottom:6px;font-size:11px;color:#365675}.class-bar-row span{font-variant-numeric:tabular-nums;font-weight:750;color:#245f9e}.class-bar-track{height:9px;border-radius:20px;background:#e7eff8;overflow:hidden}.class-bar-track i{display:block;height:100%;border-radius:20px;background:linear-gradient(90deg,#8ab7e5,#2463a6);transition:width .65s cubic-bezier(.2,.7,.2,1)}.cashier-analytics-grid .panel{box-shadow:0 3px 12px #1b4b7b0b}.cashier-analytics-grid .table td,.cashier-analytics-grid .table th{padding:11px 12px}.cashier-analytics-grid .table tbody tr{transition:background .18s ease}.cashier-analytics-grid .table tbody tr:hover{background:#eaf3fd}
+.side-logout{display:flex;align-items:center;gap:10px;width:100%;margin:0;padding:12px 13px 14px;border:0;border-radius:0;background:transparent;color:#f3f7fc;text-align:left;font-size:12px;font-weight:700;cursor:pointer;transition:background .18s ease,transform .18s ease}.side-logout span{width:24px;font-size:16px}.side-logout:hover{background:#ffffff20;transform:translateX(3px)}
+.cashier-search-panel{position:relative;padding:12px 16px;background:#fff;border:1px solid #dfe8f2;border-left:3px solid #4e7fb5;box-shadow:0 2px 8px #1b4b7b08}.cashier-search-panel .panelhead{margin-bottom:7px;align-items:center}.cashier-search-panel .panelhead h2{font-size:13px;margin:0}.cashier-search-panel .panelhead p,.cashier-search-panel .panelhead .tag{display:none}.cashier-search-panel .toolbar{margin:0}.cashier-search-panel .search{width:min(100%,360px);max-width:360px;height:36px;padding:8px 12px;background:#fff;font-size:12px}
+.dashboard-search-results{position:absolute;z-index:30;top:calc(100% - 5px);left:16px;width:min(520px,calc(100% - 32px));max-height:280px;overflow:auto;margin:0;background:#fff;border:1px solid #d9e4f0;border-radius:10px;box-shadow:0 12px 28px #142b461c}
+.dashboard-results-heading{display:flex;justify-content:space-between;align-items:center;padding:9px 12px;color:#27496d;font-size:11px;font-weight:750;border-bottom:1px solid #edf1f6}.dashboard-results-heading span{color:#718096;font-size:10px;font-weight:500}
+.student-suggestion{display:flex;align-items:center;justify-content:space-between;gap:12px;width:100%;padding:9px 12px;border:0;border-bottom:1px solid #f0f3f7;background:#fff;text-align:left;cursor:pointer;color:#243b53}.student-suggestion:last-child{border-bottom:0}.student-suggestion:hover{background:#eff6fd}.student-suggestion b{display:block;font-size:12px}.student-suggestion small{display:block;margin-top:2px;color:#718096;font-size:10px}.student-suggestion .arrow{font-size:18px;color:#3975ae}.dashboard-search-message{padding:11px 12px;color:#718096;font-size:11px}
+.student-history-modal{position:fixed;inset:0;z-index:1100;display:flex;align-items:center;justify-content:center;padding:24px;background:#0b173b99}.student-history-dialog{width:min(1180px,96vw);max-height:88vh;overflow:auto;margin:0;box-shadow:0 24px 70px #0004}.student-history-dialog>.panelhead{position:sticky;top:-1px;z-index:2;padding:8px 0;background:#fff}.student-history-dialog .tablewrap{max-height:52vh;overflow:auto}.student-history-dialog .table{min-width:850px}.student-history-dialog .dashboard-search-history{margin:0;padding:0;border:0}.cashier-analytics-grid{display:grid;grid-template-columns:minmax(0,1.4fr) minmax(300px,.9fr);gap:16px;align-items:start;margin-bottom:16px}.cashier-class-panel{min-width:0}.cashier-class-table{min-width:620px}.cashier-class-table th{background:#eaf3fd;color:#315b86}.cashier-class-table tbody tr{transition:background .2s ease,box-shadow .2s ease}.cashier-class-table tbody tr:nth-child(even){background:#f7faff}.cashier-class-table tbody tr:hover{background:#e7f1fd;box-shadow:inset 3px 0 #4e8ac7}.cashier-side-analytics{display:grid;gap:0}.cashier-side-analytics .panel{min-width:0}.class-bars{display:grid;gap:15px}.class-bar-row>div:first-child{display:flex;justify-content:space-between;gap:10px;margin-bottom:6px;font-size:11px;color:#365675}.class-bar-row span{font-variant-numeric:tabular-nums;font-weight:750;color:#245f9e}.class-bar-track{height:9px;border-radius:20px;background:#e7eff8;overflow:hidden}.class-bar-track i{display:block;height:100%;border-radius:20px;background:linear-gradient(90deg,#8ab7e5,#2463a6);transition:width .65s cubic-bezier(.2,.7,.2,1)}.cashier-analytics-grid .panel{box-shadow:0 3px 12px #1b4b7b0b}.cashier-analytics-grid .table td,.cashier-analytics-grid .table th{padding:11px 12px}.cashier-analytics-grid .table tbody tr{transition:background .18s ease}.cashier-analytics-grid .table tbody tr:hover{background:#eaf3fd}
 @media(max-width:1100px){.cashier-analytics-grid{grid-template-columns:1fr}.cashier-side-analytics{grid-template-columns:1fr 1fr;gap:14px}}
-@media(max-width:700px){.side-logout{margin:14px 0 0;padding:13px 10px 8px;width:auto;min-width:140px}.cashier-side-analytics{grid-template-columns:1fr}.cashier-analytics-grid{gap:8px}.cashier-search-panel{padding:14px}.cashier-search-panel .panelhead{align-items:flex-start}.cashier-class-panel{padding:13px}}
+@media(max-width:700px){.side-logout{margin:0;padding:12px 10px 10px;width:auto;min-width:140px}.cashier-side-analytics{grid-template-columns:1fr}.cashier-analytics-grid{gap:8px}.cashier-search-panel{padding:14px}.cashier-search-panel .panelhead{align-items:flex-start}.cashier-class-panel{padding:13px}}
 </style>
 </head>
 <body>
@@ -119,8 +114,8 @@ canvas,svg{max-width:100%}
  <button data-page="tariffs"><span>◇</span>Tarifs scolaires</button>
  <button data-page="accounts"><span>♧</span>Utilisateurs & rôles</button>
  <button data-page="settings"><span>⚙</span>Paramètres</button></nav>
- <button class="side-logout" id="logoutBtn"><span>↪</span>Déconnexion</button>
  <div class="sidefoot">GESTION BÉATRICE<br>Plateforme de gestion scolaire<br>© 2026</div>
+ <button class="side-logout" id="logoutBtn"><span>↪</span>Déconnexion</button>
 </aside>
 <main class="main"><header class="topbar"><div class="crumb">GESTION BÉATRICE / <b id="crumbTitle">Tableau de bord</b></div><div class="topright"><div class="status"><i class="dot"></i>Session connectée</div><div class="userbox"><b id="userName">Utilisateur</b><span id="userRole" class="muted"></span></div></div></header><section class="content" id="pageContent"></section></main>
 </div>
@@ -149,7 +144,8 @@ if(user.role==="CAISSIER"){
   const [d,p]=await Promise.all([api("/api/dashboard"),api("/api/payments?limit=8")]);
   const revenue=(d.revenue||[]).map(x=>money(x.amount,x.currency)).join(" · ")||"0";
   $("pageContent").innerHTML=heading("Espace caisse","Tableau de bord du caissier — "+esc(d.active_year?.label||"Aucune année active"))+
-  '<section class="panel cashier-search-panel"><div class="panelhead"><div><h2>Rechercher un élève</h2><p class="muted">Accès rapide à son dossier et à l’ensemble de ses transactions.</p></div><span class="tag green">Recherche élève</span></div><div class="toolbar"><input class="search" id="dashboardStudentSearch" type="search" autocomplete="off" placeholder="Nom ou numéro de l’élève…"></div><div id="dashboardStudentSuggestions" class="dashboard-search-results"></div><div id="dashboardStudentHistory" class="dashboard-search-history"><div class="empty">Saisissez au moins deux caractères pour rechercher un élève.</div></div></section>'+
+  '<section class="panel cashier-search-panel"><div class="panelhead"><h2>Recherche rapide d’un élève</h2></div><div class="toolbar"><input class="search" id="dashboardStudentSearch" type="search" autocomplete="off" placeholder="Nom ou numéro de l’élève…"></div><div id="dashboardStudentSuggestions" class="dashboard-search-results"></div></section>'+
+  '<div id="dashboardStudentModal" class="student-history-modal hidden"><section class="panel student-history-dialog"><div class="panelhead"><h2>Dossier et historique de l’élève</h2><button type="button" class="btn secondary" id="closeDashboardStudentModal">Fermer</button></div><div id="dashboardStudentHistory" class="dashboard-search-history"></div></section></div>'+
   (!d.active_year?'<div class="notice">Aucune année scolaire active. Les encaissements sont suspendus jusqu’à l’ouverture de l’année par l’administrateur.</div>':'')+
   '<div class="cards cards-three"><article class="card"><div class="cardtop">Mes paiements <span class="cardicon">▤</span></div><div class="value">'+d.payments+'</div><div class="sub">Versements enregistrés par votre compte</div></article>'+
   '<article class="card"><div class="cardtop">Mes recettes <span class="cardicon">₣</span></div><div class="value" style="font-size:19px">'+esc(revenue)+'</div><div class="sub">Total de vos versements validés</div></article>'+
@@ -157,12 +153,14 @@ if(user.role==="CAISSIER"){
   '<section class="panel cashier-class-panel"><div class="panelhead"><h2>Situation des paiements par classe</h2><span class="tag">Année active</span></div>'+
   '<div class="tablewrap"><table class="table cashier-class-table"><thead><tr><th>Classe</th><th>Élèves ayant payé</th><th>Montant payé (USD)</th></tr></thead>'+
   '<tbody>'+((d.class_summary||[]).map(c=>'<tr><td><b>'+esc(c.class_name)+'</b></td><td>'+c.students_paid+'</td><td><b>'+money(c.paid_usd,"USD")+'</b></td></tr>').join("")||'<tr><td colspan="3" class="empty">Aucun paiement validé pour l’année active.</td></tr>')+'</tbody></table></div></section>'+
-  '<section class="panel"><div class="panelhead"><h2>Instructions de caisse</h2><span>À suivre pour chaque versement</span></div><ol class="cashier-steps"><li>Rechercher l’élève par son nom ou son numéro.</li><li>Vérifier sa catégorie, sa classe et son option, si nécessaire.</li><li>Choisir le type de frais concerné.</li><li>Saisir le montant réellement reçu. Les paiements partiels sont autorisés.</li><li>Valider le versement et imprimer le ticket remis au parent.</li></ol><div class="notice">Important : vérifiez le nom et le montant avant validation. Vous pouvez rectifier uniquement vos propres paiements ; vous ne pouvez jamais les supprimer. Chaque rectification est conservée dans le journal de contrôle.</div><div class="toolbar"><button class="btn" data-go="payments">Ouvrir la caisse / Encaisser</button></div></section>'+
+
   '<section class="panel"><div class="panelhead"><h2>Paiements récents</h2><span>Enregistrements des dernières 24 heures</span></div><div class="tablewrap"><table class="table"><thead><tr><th>Date</th><th>Ticket</th><th>Référence</th><th>Élève</th><th>Type de frais</th><th>Montant</th><th>Statut</th></tr></thead><tbody>'+paymentRows((p.payments||[]).filter(x=>Date.now()-new Date(x.payment_date).getTime()<24*60*60*1000&&Date.now()>=new Date(x.payment_date).getTime()).slice(0,8),false)+'</tbody></table></div></section>'+
   ''+
   '<div id="dashboardCorrectionModal" class="hidden" style="position:fixed;inset:0;background:#0b173b88;z-index:1000;display:flex;align-items:center;justify-content:center;padding:20px"><section class="panel" style="width:min(480px,100%);box-shadow:0 20px 60px #0003"><div class="panelhead"><h2>Rectifier un paiement</h2><button type="button" class="btn secondary" id="closeDashboardCorrection">Fermer</button></div><form id="dashboardCorrectionForm" class="formgrid"><input type="hidden" name="payment_id"><label class="field full"><span>Nouveau montant reçu *</span><input name="amount_paid" type="number" min="0.01" step="0.01" required></label><label class="field full"><span>Observation / motif de rectification *</span><input name="notes" maxlength="500" required></label><div class="field full"><button class="btn">Enregistrer la rectification</button></div></form></section></div>';
   document.querySelectorAll("[data-go]").forEach(b=>b.addEventListener("click",()=>navigate(b.dataset.go)));
-  const search=$("dashboardStudentSearch"),suggestions=$("dashboardStudentSuggestions"),history=$("dashboardStudentHistory");
+  const search=$("dashboardStudentSearch"),suggestions=$("dashboardStudentSuggestions"),history=$("dashboardStudentHistory"),studentModal=$("dashboardStudentModal");
+  $("closeDashboardStudentModal").addEventListener("click",()=>studentModal.classList.add("hidden"));
+  studentModal.addEventListener("click",e=>{if(e.target===studentModal)studentModal.classList.add("hidden");});
   $("closeDashboardCorrection").addEventListener("click",()=>$("dashboardCorrectionModal").classList.add("hidden"));
   $("dashboardCorrectionForm").addEventListener("submit",async e=>{
     e.preventDefault();const form=e.target,id=form.elements.payment_id.value,term=form.dataset.search||search.value;
@@ -172,19 +170,22 @@ if(user.role==="CAISSIER"){
   let timer=null,request=0;
   search.addEventListener("input",()=>{
     const current=++request;
-    clearTimeout(timer);suggestions.innerHTML="";history.innerHTML='<div class="empty">Recherche en cours…</div>';
+    clearTimeout(timer);suggestions.innerHTML="";
     const term=search.value.trim();
-    if(term.length<2){history.innerHTML='<div class="empty">Saisissez au moins deux caractères pour rechercher un élève.</div>';return;}
+    if(term.length<2)return;
+    suggestions.innerHTML='<div class="dashboard-search-message">Recherche en cours…</div>';
     timer=setTimeout(async()=>{
       try{
         const found=(await api("/api/students/search?q="+encodeURIComponent(term))).students||[];
         if(current!==request)return;
-        if(!found.length){history.innerHTML='<div class="empty">Aucun élève correspondant.</div>';return;}
-        suggestions.innerHTML='<div class="dashboard-results-heading">Résultats de la recherche <span>'+found.length+' élève(s)</span></div><div class="tablewrap"><table class="table dashboard-results-table"><thead><tr><th>N° élève</th><th>Nom complet</th><th>Classe</th><th>Action</th></tr></thead><tbody>'+found.map((s,i)=>'<tr><td>'+esc(s.student_number||"—")+'</td><td><b>'+esc(s.full_name)+'</b></td><td>'+esc(s.class_name||"À préciser")+'</td><td><button type="button" class="btn secondary" data-dashboard-student="'+i+'">Consulter</button></td></tr>').join("")+'</tbody></table></div>';
+        if(!found.length){suggestions.innerHTML='<div class="dashboard-search-message">Aucun élève correspondant.</div>';return;}
+        suggestions.innerHTML='<div class="dashboard-results-heading">Choisir un élève <span>'+found.length+' résultat(s)</span></div>'+found.map((s,i)=>'<button type="button" class="student-suggestion" data-dashboard-student="'+i+'"><span><b>'+esc(s.full_name)+'</b><small>'+esc(s.student_number||"N° non attribué")+' · '+esc(s.class_name||"Classe à préciser")+'</small></span><span class="arrow">›</span></button>').join("");
         suggestions.querySelectorAll("[data-dashboard-student]").forEach(btn=>btn.addEventListener("click",async()=>{
           const student=found[Number(btn.dataset.dashboardStudent)];
-          suggestions.innerHTML='<span class="tag green">Élève sélectionné : '+esc(student.full_name)+'</span>';
-          history.innerHTML='<div class="empty">Chargement de tous les paiements…</div>';
+          search.value=student.full_name;
+          suggestions.innerHTML="";
+          studentModal.classList.remove("hidden");
+          history.innerHTML='<div class="empty">Chargement du dossier et de l’historique…</div>';
           try{
             const result=await api("/api/students/"+encodeURIComponent(student.id)+"/payments");
             const rows=result.payments||[];
@@ -198,7 +199,7 @@ if(user.role==="CAISSIER"){
 
           }catch(err){history.innerHTML='<div class="error">'+esc(err.message)+'</div>';}
         }));
-      }catch(err){if(current===request)history.innerHTML='<div class="error">'+esc(err.message)+'</div>';}
+      }catch(err){if(current===request)suggestions.innerHTML='<div class="dashboard-search-message">'+esc(err.message)+'</div>';}
     },250);
   });
   return;
