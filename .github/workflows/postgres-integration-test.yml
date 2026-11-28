@@ -5,6 +5,8 @@ on:
     branches: [main]
     paths:
       - "database/schema_v1_corrige.sql"
+      - "app/main.py"
+      - "public/index.html"
       - "tests/schema_smoke_tests.sql"
       - "tests/bootstrap_supabase_test.sql"
       - "database/migrations/003_paiements_usd_cdf_taux_2300.sql"
@@ -45,6 +47,19 @@ jobs:
     steps:
       - name: Checkout
         uses: actions/checkout@v4
+      - name: Validate backend Python syntax
+        run: python3 -m py_compile app/main.py
+      - name: Validate frontend JavaScript syntax
+        run: |
+          python3 - <<'PY'
+          import re
+          html = open("public/index.html", encoding="utf-8").read()
+          scripts = re.findall(r"<script[^>]*>([\\s\\S]*?)</script>", html, flags=re.IGNORECASE)
+          if not scripts:
+              raise SystemExit("No inline JavaScript found")
+          open("/tmp/gestion-beatrice-frontend.js", "w", encoding="utf-8").write("\\n".join(scripts))
+          PY
+          node --check /tmp/gestion-beatrice-frontend.js
       - name: Install PostgreSQL client
         run: |
           sudo apt-get update
