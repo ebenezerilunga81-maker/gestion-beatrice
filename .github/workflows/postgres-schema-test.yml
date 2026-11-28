@@ -53,6 +53,8 @@ jobs:
         run: psql -v ON_ERROR_STOP=1 -f database/migrations/202611280002_restrict_headcounts_api_access.sql
       - name: Disable the obsolete academic decisions RPC
         run: psql -v ON_ERROR_STOP=1 -f database/migrations/202611280003_disable_academic_decisions_rpc.sql
+      - name: Revoke service role access to obsolete decisions RPC
+        run: psql -v ON_ERROR_STOP=1 -f database/migrations/202611280004_revoke_decision_rpc_service_role.sql
       - name: Run structural smoke tests
         run: |
           psql -v ON_ERROR_STOP=1 -f tests/schema_smoke_tests.sql
