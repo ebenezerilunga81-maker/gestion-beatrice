@@ -32,6 +32,9 @@ create table if not exists public.school_year_class_headcounts (
 create index if not exists school_year_class_headcounts_year_idx
   on public.school_year_class_headcounts(school_year_id, class_id);
 
+grant select, insert, update on public.school_year_headcounts to service_role;
+grant select, insert, update on public.school_year_class_headcounts to service_role;
+
 alter table public.school_year_headcounts enable row level security;
 alter table public.school_year_class_headcounts enable row level security;
 
