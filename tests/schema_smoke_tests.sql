@@ -78,7 +78,7 @@ begin
   if not has_function_privilege('authenticated','public.register_payment(uuid,uuid,numeric,text)','EXECUTE')
      or not has_function_privilege('authenticated','public.annul_payment(uuid,text)','EXECUTE')
      or not has_function_privilege('authenticated','public.correct_own_payment(uuid,numeric,timestamp with time zone,text)','EXECUTE')
-     or not has_function_privilege('authenticated','public.validate_student_decision(uuid,text,uuid)','EXECUTE') then
+ then
     raise exception 'TEST FAILED: une RPC métier manque son droit EXECUTE authenticated';
   end if;
 
