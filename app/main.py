@@ -1,6 +1,8 @@
 import os
 import logging
 import secrets
+import threading
+from concurrent.futures import ThreadPoolExecutor
 from typing import Optional
 from uuid import UUID
 
@@ -55,16 +57,41 @@ app.add_middleware(
 )
 
 
+# Les clients de lecture/administration réutilisent leur pool HTTP.
+# Cela évite de renégocier une connexion TLS à chaque requête Supabase.
+# Le client de connexion (sign_in) reste isolé par requête pour ne jamais
+# partager l'état de session entre plusieurs utilisateurs.
+_client_lock = threading.Lock()
+_admin_client_instance = None
+_public_auth_client_instance = None
+
+
 def public_client():
     if not SUPABASE_URL or not SUPABASE_ANON_KEY:
         raise HTTPException(status_code=503, detail="Authentification non configurée.")
     return create_client(SUPABASE_URL, SUPABASE_ANON_KEY)
 
 
+def public_auth_client():
+    global _public_auth_client_instance
+    if not SUPABASE_URL or not SUPABASE_ANON_KEY:
+        raise HTTPException(status_code=503, detail="Authentification non configurée.")
+    if _public_auth_client_instance is None:
+        with _client_lock:
+            if _public_auth_client_instance is None:
+                _public_auth_client_instance = create_client(SUPABASE_URL, SUPABASE_ANON_KEY)
+    return _public_auth_client_instance
+
+
 def admin_client():
+    global _admin_client_instance
     if not SUPABASE_URL or not SUPABASE_SERVICE_ROLE_KEY:
         raise HTTPException(status_code=503, detail="Service administratif non configuré.")
-    return create_client(SUPABASE_URL, SUPABASE_SERVICE_ROLE_KEY)
+    if _admin_client_instance is None:
+        with _client_lock:
+            if _admin_client_instance is None:
+                _admin_client_instance = create_client(SUPABASE_URL, SUPABASE_SERVICE_ROLE_KEY)
+    return _admin_client_instance
 
 
 class SetPasswordInput(BaseModel):
@@ -112,7 +139,7 @@ def bearer_token(authorization: Optional[str] = Header(default=None)) -> str:
 
 def current_profile(token: str = Depends(bearer_token)):
     try:
-        auth_user = public_client().auth.get_user(token).user
+        auth_user = public_auth_client().auth.get_user(token).user
         if auth_user is None:
             raise HTTPException(status_code=401, detail="Session invalide.")
         profile = admin_client().table("profiles").select(
@@ -509,18 +536,34 @@ def _audit_business(context, action, table_name, record_id, old_data=None, new_d
 @app.get("/api/references")
 def references(context=Depends(current_profile)):
     client = admin_client()
-    years = client.table("school_years").select("*").order("start_date", desc=True).execute().data or []
+    years = client.table("school_years").select(
+        "id,label,start_date,end_date,is_active"
+    ).order("start_date", desc=True).execute().data or []
     active = next((y for y in years if y.get("is_active")), None)
+
+    # Ces référentiels sont indépendants : les charger en parallèle réduit
+    # fortement le temps d'attente cumulé sans changer les données retournées.
+    with ThreadPoolExecutor(max_workers=5) as pool:
+        categories_future = pool.submit(_rows, "categories", "id,code,name")
+        classes_future = pool.submit(_rows, "classes", "id,category_id,code,name,level_order")
+        options_future = pool.submit(_rows, "options", "id,code,name,is_active")
+        fee_types_future = pool.submit(_rows, "fee_types", "id,code,name,is_active")
+        tariffs_future = (
+            pool.submit(
+                lambda: client.table("fee_tariffs").select(
+                    "id,school_year_id,fee_type_id,category_id,class_id,amount,currency,is_active"
+                ).eq("school_year_id", active["id"]).execute().data or []
+            ) if active else None
+        )
+
     return {
-        "categories": _rows("categories", "id,code,name"),
-        "classes": _rows("classes", "id,category_id,code,name,level_order"),
-        "options": _rows("options", "id,code,name,is_active"),
-        "fee_types": _rows("fee_types", "id,code,name,is_active"),
+        "categories": categories_future.result(),
+        "classes": classes_future.result(),
+        "options": options_future.result(),
+        "fee_types": fee_types_future.result(),
         "active_year": active,
         "school_years": years,
-        "tariffs": client.table("fee_tariffs").select(
-            "id,school_year_id,fee_type_id,category_id,class_id,amount,currency,is_active"
-        ).eq("school_year_id", active["id"]).execute().data if active else [],
+        "tariffs": tariffs_future.result() if tariffs_future else [],
     }
 
 
@@ -540,14 +583,22 @@ def dashboard(context=Depends(current_profile)):
                 "balances": [], "recent_payments": [],
                 "message": "Aucune année scolaire active. Le tableau de bord sera complet après l’ouverture de l’année scolaire."}
 
-    enrollments = client.table("student_enrollments").select(
-        "id,student_id,class_id,category_id,option_id"
-    ).eq("school_year_id", year["id"]).execute().data or []
-    enrollment_ids = [e["id"] for e in enrollments]
-    tariffs = client.table("fee_tariffs").select(
-        "id,fee_type_id,class_id,amount,currency"
-    ).eq("school_year_id", year["id"]).eq("is_active", True).execute().data or []
+    # Les inscriptions et tarifs ne dépendent que de l'année active.
+    with ThreadPoolExecutor(max_workers=2) as pool:
+        enrollments_future = pool.submit(
+            lambda: client.table("student_enrollments").select(
+                "id,student_id,class_id,category_id,option_id"
+            ).eq("school_year_id", year["id"]).execute().data or []
+        )
+        tariffs_future = pool.submit(
+            lambda: client.table("fee_tariffs").select(
+                "id,fee_type_id,class_id,amount,currency"
+            ).eq("school_year_id", year["id"]).eq("is_active", True).execute().data or []
+        )
+        enrollments = enrollments_future.result()
+        tariffs = tariffs_future.result()
 
+    enrollment_ids = [e["id"] for e in enrollments]
     all_valid = []
     if enrollment_ids:
         all_valid = client.table("payments").select(
