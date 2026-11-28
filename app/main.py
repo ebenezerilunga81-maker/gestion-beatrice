@@ -716,18 +716,32 @@ def list_students(q: str = "", context=Depends(require_roles("ADMINISTRATEUR", "
     if not ids:
         return {"students": [], "active_year": year}
 
-    students = client.table("students").select("*").in_("id", ids).order("full_name").execute().data or []
-    classes = {x["id"]: x for x in _rows("classes", "id,name,category_id")}
-    categories = {x["id"]: x for x in _rows("categories", "id,name,code")}
-    options = {x["id"]: x for x in _rows("options", "id,name")}
-    fee_types = {x["id"]: x for x in _rows("fee_types", "id,name")}
-    tariffs = client.table("fee_tariffs").select(
-        "id,fee_type_id,category_id,class_id,amount,currency,is_active"
-    ).eq("school_year_id", year["id"]).eq("is_active", True).execute().data or []
     enrollment_ids = [e["id"] for e in enrollments]
-    payments = client.table("payments").select(
-        "enrollment_id,fee_tariff_id,amount_paid,currency,amount_usd"
-    ).eq("status", "VALIDE").in_("enrollment_id", enrollment_ids).execute().data if enrollment_ids else []
+    with ThreadPoolExecutor(max_workers=7) as pool:
+        students_future = pool.submit(
+            lambda: client.table("students").select("*").in_("id", ids).order("full_name").execute().data or []
+        )
+        classes_future = pool.submit(_rows, "classes", "id,name,category_id")
+        categories_future = pool.submit(_rows, "categories", "id,name,code")
+        options_future = pool.submit(_rows, "options", "id,name")
+        fee_types_future = pool.submit(_rows, "fee_types", "id,name")
+        tariffs_future = pool.submit(
+            lambda: client.table("fee_tariffs").select(
+                "id,fee_type_id,category_id,class_id,amount,currency,is_active"
+            ).eq("school_year_id", year["id"]).eq("is_active", True).execute().data or []
+        )
+        payments_future = pool.submit(
+            lambda: client.table("payments").select(
+                "enrollment_id,fee_tariff_id,amount_paid,currency,amount_usd"
+            ).eq("status", "VALIDE").in_("enrollment_id", enrollment_ids).execute().data or []
+        )
+        students = students_future.result()
+        classes = {x["id"]: x for x in classes_future.result()}
+        categories = {x["id"]: x for x in categories_future.result()}
+        options = {x["id"]: x for x in options_future.result()}
+        fee_types = {x["id"]: x for x in fee_types_future.result()}
+        tariffs = tariffs_future.result()
+        payments = payments_future.result()
     paid_by_key = {}
     for payment in payments or []:
         key = (payment["enrollment_id"], payment["fee_tariff_id"])
@@ -925,24 +939,45 @@ def list_payments(context=Depends(require_roles("ADMINISTRATEUR", "PREFET", "PRO
         query = query.eq("cashier_id", profile["id"])
     payments = query.execute().data or []
     enrollment_ids = list({p["enrollment_id"] for p in payments})
-    enrollments = client.table("student_enrollments").select("*").in_("id", enrollment_ids).execute().data if enrollment_ids else []
-    enrollment_map = {e["id"]: e for e in (enrollments or [])}
-    student_ids = list({e["student_id"] for e in (enrollments or [])})
-    students = client.table("students").select("id,student_number,full_name").in_("id", student_ids).execute().data if student_ids else []
+    with ThreadPoolExecutor(max_workers=7) as pool:
+        enrollments_future = pool.submit(
+            lambda: client.table("student_enrollments").select("*").in_("id", enrollment_ids).execute().data or []
+        ) if enrollment_ids else None
+        tariff_ids = list({p["fee_tariff_id"] for p in payments})
+        fee_types_future = pool.submit(_rows, "fee_types", "id,name")
+        classes_future = pool.submit(_rows, "classes", "id,name")
+        options_future = pool.submit(_rows, "options", "id,name")
+        cashier_ids = list({p["cashier_id"] for p in payments if p.get("cashier_id")})
+        cashiers_future = pool.submit(
+            lambda: client.table("profiles").select("id,full_name").in_("id", cashier_ids).execute().data or []
+        ) if cashier_ids else None
+        tickets_future = pool.submit(
+            lambda: client.table("tickets").select("payment_id,ticket_number").in_(
+                "payment_id", [p["id"] for p in payments]
+            ).execute().data or []
+        ) if payments else None
+        tariffs_future = pool.submit(
+            lambda: client.table("fee_tariffs").select(
+                "id,fee_type_id,class_id,amount,currency"
+            ).in_("id", tariff_ids).execute().data or []
+        ) if tariff_ids else None
+        enrollments = enrollments_future.result() if enrollments_future else []
+        fee_types = {x["id"]: x for x in fee_types_future.result()}
+        classes = {x["id"]: x for x in classes_future.result()}
+        options = {x["id"]: x for x in options_future.result()}
+        cashiers = cashiers_future.result() if cashiers_future else []
+        tickets = tickets_future.result() if tickets_future else []
+        tariffs = tariffs_future.result() if tariffs_future else []
+
+    enrollment_map = {e["id"]: e for e in enrollments}
+    student_ids = list({e["student_id"] for e in enrollments})
+    students = client.table("students").select(
+        "id,student_number,full_name"
+    ).in_("id", student_ids).execute().data if student_ids else []
     student_map = {s["id"]: s for s in (students or [])}
-    tariff_ids = list({p["fee_tariff_id"] for p in payments})
-    tariffs = client.table("fee_tariffs").select("id,fee_type_id,class_id,amount,currency").in_("id", tariff_ids).execute().data if tariff_ids else []
-    tariff_map = {t["id"]: t for t in (tariffs or [])}
-    fee_types = {x["id"]: x for x in _rows("fee_types", "id,name")}
-    classes = {x["id"]: x for x in _rows("classes", "id,name")}
-    options = {x["id"]: x for x in _rows("options", "id,name")}
-    cashier_ids = list({p["cashier_id"] for p in payments})
-    cashiers = client.table("profiles").select("id,full_name").in_("id", cashier_ids).execute().data if cashier_ids else []
-    cashier_map = {x["id"]: x["full_name"] for x in (cashiers or [])}
-    tickets = client.table("tickets").select("payment_id,ticket_number").in_(
-        "payment_id", [p["id"] for p in payments]
-    ).execute().data if payments else []
-    ticket_map = {t["payment_id"]: t["ticket_number"] for t in (tickets or [])}
+    tariff_map = {t["id"]: t for t in tariffs}
+    cashier_map = {x["id"]: x["full_name"] for x in cashiers}
+    ticket_map = {t["payment_id"]: t["ticket_number"] for t in tickets}
     result = []
     for payment in payments:
         enrollment = enrollment_map.get(payment["enrollment_id"], {})
