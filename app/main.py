@@ -1,6 +1,7 @@
 import os
 import logging
 import secrets
+from concurrent.futures import ThreadPoolExecutor
 from typing import Optional
 from uuid import UUID
 
@@ -296,7 +297,8 @@ def login(payload: LoginInput):
         return {"access_token": session.session.access_token,
                 "refresh_token": session.session.refresh_token,
                 "token_type": "bearer", "expires_in": session.session.expires_in,
-                "user": {"id": str(session.user.id), "full_name": profile["full_name"], "role": profile["role"]}}
+                "user": {"id": profile["id"], "auth_user_id": str(session.user.id),
+                         "full_name": profile["full_name"], "role": profile["role"]}}
     except HTTPException:
         raise
     except Exception:
@@ -508,19 +510,39 @@ def _audit_business(context, action, table_name, record_id, old_data=None, new_d
 
 @app.get("/api/references")
 def references(context=Depends(current_profile)):
-    client = admin_client()
-    years = client.table("school_years").select("*").order("start_date", desc=True).execute().data or []
-    active = next((y for y in years if y.get("is_active")), None)
+    # Charger les tables de référence en parallèle : elles sont indépendantes.
+    def load(table, columns, order_column=None):
+        query = admin_client().table(table).select(columns)
+        if order_column:
+            query = query.order(order_column, desc=True)
+        return query.execute().data or []
+
+    with ThreadPoolExecutor(max_workers=5) as pool:
+        years_future = pool.submit(load, "school_years", "*", "start_date")
+        categories_future = pool.submit(load, "categories", "id,code,name")
+        classes_future = pool.submit(load, "classes", "id,category_id,code,name,level_order")
+        options_future = pool.submit(load, "options", "id,code,name,is_active")
+        fee_types_future = pool.submit(load, "fee_types", "id,code,name,is_active")
+        years = years_future.result()
+        categories = categories_future.result()
+        classes = classes_future.result()
+        options = options_future.result()
+        fee_types = fee_types_future.result()
+
+    active = next((year for year in years if year.get("is_active")), None)
+    tariffs = []
+    if active:
+        tariffs = admin_client().table("fee_tariffs").select(
+            "id,school_year_id,fee_type_id,category_id,class_id,amount,currency,is_active"
+        ).eq("school_year_id", active["id"]).execute().data or []
     return {
-        "categories": _rows("categories", "id,code,name"),
-        "classes": _rows("classes", "id,category_id,code,name,level_order"),
-        "options": _rows("options", "id,code,name,is_active"),
-        "fee_types": _rows("fee_types", "id,code,name,is_active"),
+        "categories": categories,
+        "classes": classes,
+        "options": options,
+        "fee_types": fee_types,
         "active_year": active,
         "school_years": years,
-        "tariffs": client.table("fee_tariffs").select(
-            "id,school_year_id,fee_type_id,category_id,class_id,amount,currency,is_active"
-        ).eq("school_year_id", active["id"]).execute().data if active else [],
+        "tariffs": tariffs,
     }
 
 
@@ -539,6 +561,33 @@ def dashboard(context=Depends(current_profile)):
         return {"active_year": None, "students": 0, "payments": 0, "revenue": [],
                 "balances": [], "recent_payments": [],
                 "message": "Aucune année scolaire active. Le tableau de bord sera complet après l’ouverture de l’année scolaire."}
+
+    if role == "CAISSIER":
+        # La caisse n'a pas besoin de recalculer les soldes de toute l'école.
+        # Ne charger que les inscriptions de l'année active et les paiements du caissier.
+        cashier_enrollments = client.table("student_enrollments").select(
+            "id,student_id"
+        ).eq("school_year_id", year["id"]).execute().data or []
+        enrollment_ids = [row["id"] for row in cashier_enrollments]
+        cashier_payments = []
+        if enrollment_ids:
+            cashier_payments = client.table("payments").select(
+                "id,amount_paid,currency,amount_usd"
+            ).eq("status", "VALIDE").eq("cashier_id", profile["id"]).in_(
+                "enrollment_id", enrollment_ids
+            ).execute().data or []
+
+        revenue_total = sum(
+            (payment_amount_usd(payment) for payment in cashier_payments), Decimal("0")
+        )
+        return {
+            "active_year": year,
+            "students": len({row["student_id"] for row in cashier_enrollments}),
+            "payments": len(cashier_payments),
+            "revenue": [{"currency": "USD", "amount": str(revenue_total)}] if cashier_payments else [],
+            "balances": [],
+            "recent_payments": [],
+        }
 
     enrollments = client.table("student_enrollments").select(
         "id,student_id,class_id,category_id,option_id"
@@ -866,10 +915,14 @@ def create_enrollment(payload: EnrollmentInput, context=Depends(require_roles("A
 
 
 @app.get("/api/payments")
-def list_payments(context=Depends(require_roles("ADMINISTRATEUR", "PREFET", "PROMOTEUR", "CAISSIER"))):
+def list_payments(
+    limit: int = 500,
+    context=Depends(require_roles("ADMINISTRATEUR", "PREFET", "PROMOTEUR", "CAISSIER")),
+):
     client = admin_client()
     profile = context["profile"]
-    query = client.table("payments").select("*").order("payment_date", desc=True).limit(500)
+    safe_limit = max(1, min(limit, 500))
+    query = client.table("payments").select("*").order("payment_date", desc=True).limit(safe_limit)
     if profile["role"] == "CAISSIER":
         query = query.eq("cashier_id", profile["id"])
     payments = query.execute().data or []
