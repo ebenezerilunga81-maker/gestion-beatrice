@@ -297,7 +297,8 @@ def login(payload: LoginInput):
         return {"access_token": session.session.access_token,
                 "refresh_token": session.session.refresh_token,
                 "token_type": "bearer", "expires_in": session.session.expires_in,
-                "user": {"id": str(session.user.id), "full_name": profile["full_name"], "role": profile["role"]}}
+                "user": {"id": profile["id"], "auth_user_id": str(session.user.id),
+                         "full_name": profile["full_name"], "role": profile["role"]}}
     except HTTPException:
         raise
     except Exception:
