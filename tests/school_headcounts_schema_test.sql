@@ -51,6 +51,8 @@ begin
   if has_function_privilege('authenticated',
       'public.validate_student_decision(uuid,text,uuid)', 'execute')
      or has_function_privilege('anon',
+      'public.validate_student_decision(uuid,text,uuid)', 'execute')
+     or has_function_privilege('service_role',
       'public.validate_student_decision(uuid,text,uuid)', 'execute') then
     raise exception 'L''ancienne RPC de décisions académiques reste exécutable';
   end if;
