@@ -1590,28 +1590,6 @@ def update_tariff(tariff_id: UUID, payload: TariffUpdateInput, context=Depends(r
     return {"tariff": updated}
 
 
-class DecisionInput(BaseModel):
-    decision: str = Field(pattern="^(PROMU|REDOUBLE|SORTANT|FIN_CYCLE)$")
-
-
-@app.patch("/api/admin/enrollments/{enrollment_id}/decision")
-def validate_decision(enrollment_id: UUID, payload: DecisionInput, context=Depends(require_roles("ADMINISTRATEUR"))):
-    client = admin_client()
-    enrollment = client.table("student_enrollments").select("*").eq("id", str(enrollment_id)).maybe_single().execute().data
-    if not enrollment:
-        raise HTTPException(status_code=404, detail="Inscription introuvable.")
-    cls = client.table("classes").select("code").eq("id", enrollment["class_id"]).single().execute().data
-    if payload.decision == "FIN_CYCLE" and cls["code"] != "SEC4":
-        raise HTTPException(status_code=422, detail="La fin de cycle concerne uniquement la quatrième humanité.")
-    changes = {"decision":payload.decision,"decision_validated_by":context["profile"]["id"],
-               "decision_validated_at":datetime.now(timezone.utc).isoformat()}
-    updated = client.table("student_enrollments").update(changes).eq("id", str(enrollment_id)).execute().data[0]
-    _audit_business(context, "VALIDATE_STUDENT_DECISION", "student_enrollments", enrollment_id,
-                    old_data=enrollment, new_data=updated)
-    return {"enrollment": updated}
-
-
-
 @app.get("/api/archive")
 def archive_records(
     school_year_id: Optional[UUID] = None,
